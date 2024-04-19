@@ -1,0 +1,6 @@
+@MTBTrainerAPI_HostAddress = http://localhost:5029
+
+GET {{MTBTrainerAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
