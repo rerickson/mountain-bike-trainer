@@ -1,5 +1,6 @@
 package com.example.mountainbiketrainer
 
+import TrainerAPIClient
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -113,7 +114,9 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     fun SaveButton(){
         Button(
             onClick = {
-                //TODO save to internal storage
+                var client = TrainerAPIClient();
+                client.saveData();
+
             },
             modifier = Modifier.padding(16.dp)
         ){

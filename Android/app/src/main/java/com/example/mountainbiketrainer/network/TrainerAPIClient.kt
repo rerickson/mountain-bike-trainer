@@ -1,19 +1,16 @@
-import android.os.AsyncTask
 import okhttp3.Call
 import okhttp3.Callback
-import okhttp3.MediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody
 import okhttp3.Response
 import java.io.IOException
 
-class ApiCaller {
+public class TrainerAPIClient {
     private val client = OkHttpClient()
 
-    fun run() {
+    fun saveData() {
         val request = Request.Builder()
-            .url("http://localhost:5029/api/Sessions")
+            .url("http://192.168.4.69:5029/api/Sessions")
             .build()
 
         client.newCall(request).enqueue(object : Callback {
