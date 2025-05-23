@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "com.example.mountainbiketrainer"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.example.mountainbiketrainer"
-        minSdk = 31
-        targetSdk = 34
+        minSdk = 35
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -60,6 +60,7 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation("com.squareup.okhttp3:okhttp:4.9.2")
+    implementation(libs.androidx.lifecycle.viewmodel.compose) // Or the latest version
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

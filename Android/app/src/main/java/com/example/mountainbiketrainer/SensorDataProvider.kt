@@ -107,6 +107,12 @@ class SensorDataProvider(context: Context) {
             val totalLinearAcceleration = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
             val gForce = totalLinearAcceleration / standardGravity
 
+            // TODO - Add in smoothing with low pass filter
+
+            // TODO - Add in Kalman filter
+
+            // TODO - record max values for each axis
+
             _processedData.value = ProcessedSensorData(
                 totalLinearAcceleration = totalLinearAcceleration,
                 gForce = gForce,
