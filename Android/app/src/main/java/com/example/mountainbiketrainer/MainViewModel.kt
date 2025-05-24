@@ -2,9 +2,7 @@ package com.example.mountainbiketrainer
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val sensorDataProvider = SensorDataProvider(application.applicationContext)
@@ -27,5 +25,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         super.onCleared()
         sensorDataProvider.cleanup()
+    }
+
+    fun resetMax() {
+        sensorDataProvider.resetMax()
     }
 }

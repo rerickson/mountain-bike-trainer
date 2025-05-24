@@ -25,7 +25,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        viewModel = ViewModelProvider(this).get(MainViewModel::class.java)
+        viewModel = ViewModelProvider(this)[MainViewModel::class.java]
         setContent {
             MountainBikeTrainerTheme {
                 Surface(
@@ -43,19 +43,27 @@ class MainActivity : ComponentActivity() {
         // Collect the StateFlow as State. Compose will automatically recompose
         // when this state changes.
         val sensorData by viewModel.processedSensorData.collectAsState()
-
+        var collecting = false
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text("Total Linear Accel: ${"%.2f".format(sensorData.totalLinearAcceleration)} m/s^2")
             Text("G-Force: ${"%.2f".format(sensorData.gForce)} Gs")
-            Text("Timestamp: ${sensorData.timestamp}") // Optional: display timestamp
+            Text("Timestamp: ${sensorData.timestamp}")
+            Text("Max G-Force: ${"%.2f".format(sensorData.maxGForce)} Gs")
+            Text("Max Total Linear Accel: ${"%.2f".format(sensorData.maxTotalLinearAcceleration)} m/s^2")
 
             Button(onClick = { viewModel.toggleDataCollection() }) {
                 // You might want another StateFlow in ViewModel for the button text ("Start"/"Stop")
-                val buttonText = if (sensorData.timestamp == 0L && viewModel.processedSensorData.value.totalLinearAcceleration == 0f) "Start" else "Stop" // Basic logic
+                val buttonText = if (!collecting) "Start" else "Stop" // Basic logic
+                collecting = !collecting
                 Text(buttonText)
+            }
+
+            Button(onClick = { viewModel.resetMax() }) {
+
+                Text("Reset")
             }
         }
     }

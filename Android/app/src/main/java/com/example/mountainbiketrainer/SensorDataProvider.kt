@@ -5,13 +5,11 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import androidx.compose.ui.input.key.type
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,12 +23,16 @@ import kotlin.math.sqrt
 data class ProcessedSensorData(
     val totalLinearAcceleration: Float = 0f,
     val gForce: Float = 0f,
-    val timestamp: Long = 0L // Optional: include timestamp of the event
+    val timestamp: Long = 0L, // Optional: include timestamp of the event
+    val maxGForce: Float = 0f,
+    val maxTotalLinearAcceleration: Float = 0f
 )
 
 class SensorDataProvider(context: Context) {
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private var linearAccelerationSensor: Sensor? = null
+    private var maxGForce = 0f
+    private var maxTotalLinearAcceleration = 0f
 
     // Use MutableStateFlow to hold the latest processed data
     // Initialize with default/empty data
@@ -63,7 +65,7 @@ class SensorDataProvider(context: Context) {
         sensorJob = scope.launch {
             // callbackFlow is a good way to bridge callback-based APIs like SensorEventListener
             // with Kotlin Flows.
-            callbackFlow<SensorEvent> {
+            callbackFlow {
                 val listener = object : SensorEventListener {
                     override fun onSensorChanged(event: SensorEvent?) {
                         event?.let {
@@ -111,12 +113,20 @@ class SensorDataProvider(context: Context) {
 
             // TODO - Add in Kalman filter
 
-            // TODO - record max values for each axis
+            if(gForce > maxGForce){
+                maxGForce = gForce
+            }
+
+            if(totalLinearAcceleration > maxTotalLinearAcceleration){
+                maxTotalLinearAcceleration = totalLinearAcceleration
+            }
 
             _processedData.value = ProcessedSensorData(
                 totalLinearAcceleration = totalLinearAcceleration,
                 gForce = gForce,
-                timestamp = event.timestamp
+                timestamp = event.timestamp,
+                maxGForce = maxGForce,
+                maxTotalLinearAcceleration = maxTotalLinearAcceleration
             )
         }
     }
@@ -134,5 +144,11 @@ class SensorDataProvider(context: Context) {
         stopDataCollection()
         scope.coroutineContext.cancel() // Cancel all coroutines in this scope
         println("SensorDataProvider: Cleaned up.")
+    }
+
+    fun resetMax() {
+        maxGForce = 0f
+        maxTotalLinearAcceleration = 0f
+
     }
 }
