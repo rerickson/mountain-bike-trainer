@@ -5,6 +5,8 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import androidx.compose.foundation.layout.add
+import androidx.compose.foundation.layout.size
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlin.math.sqrt
+import kotlin.text.toFloat
 
 // Data class to hold our processed sensor values
 data class ProcessedSensorData(
@@ -33,6 +36,8 @@ class SensorDataProvider(context: Context) {
     private var linearAccelerationSensor: Sensor? = null
     private var maxGForce = 0f
     private var maxTotalLinearAcceleration = 0f
+    private val MOVING_AVERAGE_SIZE = 5 // Experiment with this size (3-10 is common)
+    private val accelerationReadings = mutableListOf<Float>()
 
     // Use MutableStateFlow to hold the latest processed data
     // Initialize with default/empty data
@@ -106,23 +111,26 @@ class SensorDataProvider(context: Context) {
             val z = event.values[2]
             val standardGravity = SensorManager.STANDARD_GRAVITY
 
-            val totalLinearAcceleration = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
-            val gForce = totalLinearAcceleration / standardGravity
+            val rawTotalLinearAcceleration = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
 
-            // TODO - Add in smoothing with low pass filter
+            // Apply Moving Average to smooth out large readings
+            accelerationReadings.add(rawTotalLinearAcceleration)
+            if (accelerationReadings.size > MOVING_AVERAGE_SIZE) {
+                accelerationReadings.removeAt(0)
+            }
+            val smoothedTotalLinearAcceleration = accelerationReadings.average().toFloat()
 
-            // TODO - Add in Kalman filter
+            val gForce = smoothedTotalLinearAcceleration / standardGravity // Use smoothed value for G-force too
 
-            if(gForce > maxGForce){
+            if (smoothedTotalLinearAcceleration > maxTotalLinearAcceleration) {
+                maxTotalLinearAcceleration = smoothedTotalLinearAcceleration
+            }
+            if (gForce > maxGForce) { // Also consider if you want max G-Force based on smoothed data
                 maxGForce = gForce
             }
 
-            if(totalLinearAcceleration > maxTotalLinearAcceleration){
-                maxTotalLinearAcceleration = totalLinearAcceleration
-            }
-
             _processedData.value = ProcessedSensorData(
-                totalLinearAcceleration = totalLinearAcceleration,
+                totalLinearAcceleration = smoothedTotalLinearAcceleration, // Emit smoothed
                 gForce = gForce,
                 timestamp = event.timestamp,
                 maxGForce = maxGForce,
