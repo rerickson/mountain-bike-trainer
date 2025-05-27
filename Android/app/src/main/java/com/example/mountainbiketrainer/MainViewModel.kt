@@ -18,7 +18,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _locationPermissionGranted = MutableStateFlow(false)
     private val _collecting = MutableStateFlow(false)
 
-    // Expose the StateFlow from the provider
     val processedSensorData: StateFlow<ProcessedSensorData> = sensorDataProvider.processedData
     @OptIn(ExperimentalCoroutinesApi::class)
     val currentSpeed: StateFlow<SpeedData?> = _locationPermissionGranted.flatMapLatest { granted ->
