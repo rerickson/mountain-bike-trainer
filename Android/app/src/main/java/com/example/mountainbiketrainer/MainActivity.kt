@@ -60,10 +60,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         viewModel = ViewModelProvider(this)[MainViewModel::class.java]
 
-        setContent { // <--- IS THIS BEING CALLED?
-            MountainBikeTrainerTheme { // Or MountainBikeTrainerTheme
+        setContent {
+            MountainBikeTrainerTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    // ARE YOU CALLING YOUR MAIN UI COMPOSABLE HERE?
                     LocationPermissionScreenContent()
                 }
             }
@@ -112,9 +111,7 @@ class MainActivity : ComponentActivity() {
             Text("Max Total Linear Accel: ${"%.2f".format(sensorData.maxTotalLinearAcceleration)} m/s^2")
 
             Button(onClick = { viewModel.toggleOverallDataCollection() }) {
-                // You might want another StateFlow in ViewModel for the button text ("Start"/"Stop")
-                val buttonText = if (!collecting) "Start" else "Stop" // Basic logic
-                collecting = !collecting
+                val buttonText = if (!viewModel.getCollecting()) "Start" else "Stop"
                 Text(buttonText)
             }
 
@@ -175,10 +172,7 @@ class MainActivity : ComponentActivity() {
                     Column (
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ){ // Added a Column for layout
-                        speed?.let {
-                            Text("Current Speed: ${"%.2f".format(it.speedMph)} MPH")
-                        } ?: Text("Speed: Waiting for location...")
+                    ){
                         SpeedDisplay(viewModel = viewModel)
                         SensorDisplay(viewModel = viewModel)
                     }
