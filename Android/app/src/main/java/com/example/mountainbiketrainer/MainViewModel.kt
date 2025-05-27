@@ -50,7 +50,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun getCollecting(): Boolean {
-        return _collecting.value;
+        return _collecting.value
     }
 
     fun toggleOverallDataCollection() {

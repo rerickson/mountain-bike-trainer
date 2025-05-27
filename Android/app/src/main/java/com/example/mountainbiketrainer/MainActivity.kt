@@ -95,11 +95,8 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun SensorDisplay(viewModel: MainViewModel) { // Pass ViewModel or get it via hiltViewModel()
-        // Collect the StateFlow as State. Compose will automatically recompose
-        // when this state changes.
+    fun SensorDisplay(viewModel: MainViewModel) {
         val sensorData by viewModel.processedSensorData.collectAsState()
-        var collecting = false
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -158,10 +155,7 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun LocationPermissionScreenContent() {
-        val speed by viewModel.currentSpeed.collectAsState() // Collect from ViewModel
-
         checkAndRequestLocationPermissions()
-        //openAppSettings()
         if (showLocationAccessState.value.contains("granted")) { // Or a better state check
             MountainBikeTrainerTheme {
                 Surface(
