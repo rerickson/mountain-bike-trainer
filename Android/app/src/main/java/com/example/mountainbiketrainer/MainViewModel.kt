@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.stateIn
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val sensorDataProvider = SensorDataProvider(application.applicationContext)
     private val locationProvider = LocationProvider(application.applicationContext)
-    private val _locationPermissionGranted = MutableStateFlow(false)
+    private val _locationPermissionGranted = MutableStateFlow(true)
     private val _collecting = MutableStateFlow(false)
 
     val processedSensorData: StateFlow<ProcessedSensorData> = sensorDataProvider.processedData
@@ -24,7 +24,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (granted) {
             locationProvider.startLocationUpdates()
             locationProvider.locationUpdates.catch { e ->
-                // Handle errors from the locationUpdates flow (e.g., provider disabled)
                 System.err.println("Error in location updates flow: ${e.message}")
                 emit(SpeedData(speedMph = -1f))
             }
@@ -40,9 +39,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onLocationPermissionsGranted() {
         _locationPermissionGranted.value = true
+       // locationProvider.startLocationUpdates()
     }
 
-    // Call this if permissions are revoked or explicitly denied by the user
     fun onLocationPermissionsDenied() {
         _locationPermissionGranted.value = false
         locationProvider.stopLocationUpdates() // Explicitly stop
@@ -53,19 +52,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleOverallDataCollection() {
-        if (_locationPermissionGranted.value) { // Only proceed if permission is there
-            _collecting.value = !_collecting.value
-            if (_collecting.value) {
-                sensorDataProvider.startDataCollection()
-                // Location updates are handled by the 'currentSpeed' flow based on permission state
-                println("ViewModel: Started data collection (sensors + location if permitted).")
-            } else {
-                sensorDataProvider.stopDataCollection()
-
-                println("ViewModel: Stopped data collection.")
-            }
+        _collecting.value = !_collecting.value
+        if (_collecting.value) {
+            sensorDataProvider.startDataCollection()
+            // Location updates are handled by the 'currentSpeed' flow based on permission state
+            println("ViewModel: Started data collection (sensors + location if permitted).")
         } else {
-            println("ViewModel: Cannot start data collection, location permission not granted.")
+            sensorDataProvider.stopDataCollection()
+
+            println("ViewModel: Stopped data collection.")
         }
     }
 

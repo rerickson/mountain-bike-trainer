@@ -66,49 +66,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        checkInitialPermissionStatus()
     }
-
-    private fun checkInitialPermissionStatus() {
-        val fineLocationGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        val coarseLocationGranted = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-
-        if (fineLocationGranted || coarseLocationGranted) {
-            showLocationAccessState.value = "Location permissions already granted."
-            viewModel.onLocationPermissionsGranted()
-        } else {
-            showLocationAccessState.value = "Location permissions not granted yet."
-            viewModel.onLocationPermissionsDenied() // Ensure initial state is correct
-        }
-    }
-
-//    @Composable
-//    fun SpeedDisplay(viewModel: MainViewModel) {
-//        val speedData by viewModel.currentSpeed.collectAsState()
-//        Column(
-//            modifier = Modifier.padding(16.dp),
-//            verticalArrangement = Arrangement.spacedBy(8.dp)
-//        ) {
-//            Text("Speed: ${"%.2f".format(speedData?.speedMph)} mph")
-//        }
-//    }
-
-//    @Composable
-//    fun SensorDisplay(viewModel: MainViewModel) {
-//        val sensorData by viewModel.processedSensorData.collectAsState()
-//        Column(
-//            modifier = Modifier.padding(16.dp),
-//            verticalArrangement = Arrangement.spacedBy(8.dp)
-//
-//        ) {
-//            Text("Total Linear Accel: ${"%.2f".format(sensorData.totalLinearAcceleration)} m/s^2")
-//            Text("G-Force: ${"%.2f".format(sensorData.gForce)} Gs")
-//            Text("Timestamp: ${sensorData.timestamp}")
-//            Text("Max G-Force: ${"%.2f".format(sensorData.maxGForce)} Gs")
-//            Text("Max Total Linear Accel: ${"%.2f".format(sensorData.maxTotalLinearAcceleration)} m/s^2")
-//
-//        }
-//    }
 
     private fun checkAndRequestLocationPermissions() {
         val fineLocationPermission = Manifest.permission.ACCESS_FINE_LOCATION
@@ -121,26 +79,15 @@ class MainActivity : ComponentActivity() {
         if (!fineLocationGranted) {
             permissionsToRequest.add(fineLocationPermission)
         }
-        if (!coarseLocationGranted) { // Also request coarse if fine is not enough or you want to offer it
+        if (!coarseLocationGranted) {
             permissionsToRequest.add(coarseLocationPermission)
         }
 
         if (permissionsToRequest.isNotEmpty()) {
-            // Explain why you need the permission (rationale)
-            // if (shouldShowRequestPermissionRationale(fineLocationPermission) || shouldShowRequestPermissionRationale(coarseLocationPermission)) {
-            //     // Show a dialog explaining why you need the permission.
-            //     // After the user sees the explanation, try requesting again.
-            //     showLocationAccessState.value = "Please grant location permission for the app to function."
-            //     showPermissionRationaleDialog.value = true // Trigger rationale dialog
-            // } else {
-            // No explanation needed; request the permission
             requestLocationPermissionLauncher.launch(permissionsToRequest.toTypedArray())
-            // }
         } else {
-            // Permissions are already granted
-            showLocationAccessState.value = "Location permissions already granted."
-            // Proceed with location-dependent tasks
-            //mainViewModel.onPermissionsGranted() // Example
+            showLocationAccessState.value = "granted."
+            viewModel.onLocationPermissionsGranted()
         }
     }
 
@@ -148,46 +95,44 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun LocationPermissionScreenContent(viewModel: MainViewModel) {
         checkAndRequestLocationPermissions()
-        if (showLocationAccessState.value.contains("granted")) { // Or a better state check
+        if (showLocationAccessState.value.contains("granted")) {
             val sensorData by viewModel.processedSensorData.collectAsState()
-            MountainBikeTrainerTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize()
+
+            Column (
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ){
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Column (
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ){
-                        Column(
-                            modifier = Modifier.weight(1f), // Takes up available space, pushing stats to bottom
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
+                    // TODO remove this
+                    Text(showLocationAccessState.value)
 
-                            Button(onClick = { viewModel.toggleOverallDataCollection() }) {
-                                val buttonText = if (!viewModel.getCollecting()) "Start" else "Stop"
-                                Text(buttonText)
-                            }
-
-                            Button(onClick = { viewModel.resetMax() }) {
-                                Text("Reset")
-                            }
-
-                            val speedData by viewModel.currentSpeed.collectAsState()
-                            SpeedDisplay(speedData?.speedMph)
-                            Spacer(modifier = Modifier.height(24.dp))
-                            GForceDisplay(sensorData) // Pass your G-force data
-                        }
-
-                        // Divider
-//                        HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        // Secondary Stats Area
-                        SessionStatsDisplay(sensorData) // Pass your session stats
+                    Button(onClick = { viewModel.toggleOverallDataCollection() }) {
+                        val buttonText = if (!viewModel.getCollecting()) "Start" else "Stop"
+                        Text(buttonText)
                     }
+
+                    Button(onClick = { viewModel.resetMax() }) {
+                        Text("Reset")
+                    }
+
+                    val speedData by viewModel.currentSpeed.collectAsState()
+                    SpeedDisplay(speedData?.speedMph)
+                    Spacer(modifier = Modifier.height(24.dp))
+                    GForceDisplay(sensorData)
                 }
+
+//                        HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                SessionStatsDisplay(sensorData)
+                Spacer(modifier = Modifier.height(24.dp))
             }
+        } else {
+            Text("Permissions required")
         }
     }
 
@@ -202,7 +147,7 @@ class MainActivity : ComponentActivity() {
             )
             Text(
                 text = if (speedMph != null) "%.1f".format(speedMph) else "--.-",
-                fontSize = 72.sp, // Large font for speed
+                fontSize = 72.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -215,54 +160,22 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun GForceDisplay(gForceData: ProcessedSensorData?) { // Assuming GForceData class
+    fun GForceDisplay(gForceData: ProcessedSensorData?) {
 
-//        Text("Total Linear Accel: ${"%.2f".format(sensorData.totalLinearAcceleration)} m/s^2")
-//        Text("G-Force: ${"%.2f".format(sensorData.gForce)} Gs")
-//        Text("Timestamp: ${sensorData.timestamp}")
-//        Text("Max G-Force: ${"%.2f".format(sensorData.maxGForce)} Gs")
-//        Text("Max Total Linear Accel: ${"%.2f".format(sensorData.maxTotalLinearAcceleration)} m/s^2")
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = "G-FORCE",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            // You can choose how to display G-Force. Here's one option:
-            // Option 1: Displaying Max Lateral G as primary, or individual axes
             Text(
-                // Example: Displaying the more relevant lateral G-force or a composite value
                 text = if (gForceData != null) "%.2f".format(gForceData.maxGForce) + "g" else "-.--g",
                 fontSize = 48.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.secondary
             )
-
-            // Option 2: Individual Axes (if important) - can be smaller
-            // Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            //     GForceAxis(label = "X", value = gForceData?.x)
-            //     GForceAxis(label = "Y", value = gForceData?.y)
-            //     GForceAxis(label = "Z", value = gForceData?.z)
-            // }
         }
     }
-
-    @Composable
-    fun GForceAxis(label: String, value: Float?) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = if (value != null) "%.2f".format(value) else "-.--",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-
 
     @Composable
     fun SessionStatsDisplay(stats: ProcessedSensorData?) {
@@ -285,7 +198,7 @@ class MainActivity : ComponentActivity() {
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
 //                StatItem("Distance", if (stats?.distanceMiles != null) "%.1f mi".format(stats.distanceMiles) else "--")
-                StatItem("Max G-Force", if (stats?.maxGForce != null) "%.2fg".format(stats.maxGForce) else "--")
+//                StatItem("Max G-Force", if (stats?.maxGForce != null) "%.2fg".format(stats.maxGForce) else "--")
             }
             //StatItem("Time", stats?.elapsedTimeFormatted ?: "--:--:--")
         }

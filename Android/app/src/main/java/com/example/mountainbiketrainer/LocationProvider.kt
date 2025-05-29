@@ -22,54 +22,46 @@ data class SpeedData(val speedMph: Float)
 class LocationProvider(private val context: Context) {
 
     private val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-    private var locationListener: LocationListener? = null // Keep a reference to remove it
+    private var locationListener: LocationListener? = null
 
-    // Use a MutableStateFlow to hold the flow of updates.
-    // This allows us to switch to an active flow only when started.
     private val _locationUpdatesFlow = MutableStateFlow<Flow<SpeedData>>(emptyFlow())
-    val locationUpdates: Flow<SpeedData> = _locationUpdatesFlow.asStateFlow().value // Expose the current flow
+    val locationUpdates: Flow<SpeedData> = _locationUpdatesFlow.asStateFlow().value
 
     fun startLocationUpdates() {
-        if (ActivityCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
-                context,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            // This should ideally not be reached if ViewModel calls this only after permission grant
-            System.err.println("LocationProvider: Attempted to start updates without permission.")
-            _locationUpdatesFlow.value = callbackFlow { close(SecurityException("Location permission not granted.")) }
-            return
-        }
-
-        if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-            System.err.println("LocationProvider: GPS provider is not enabled.")
-            _locationUpdatesFlow.value = callbackFlow { close(IllegalStateException("GPS provider is not enabled.")) }
-            return
-        }
-
         // Create the actual flow that emits location data
-        _locationUpdatesFlow.value = callbackFlow {
+        _locationUpdatesFlow.value = callbackFlow @androidx.annotation.RequiresPermission(allOf = [android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION]) {
             val listener = object : LocationListener {
                 override fun onLocationChanged(location: Location) {
+                    println("LocationProvider: Location changed")
+
                     if (location.hasSpeed()) {
                         val speedMetersPerSecond = location.speed
                         val speedMph = speedMetersPerSecond * 2.23694f
+                        System.err.println("LocationProvider: Found speed of: " + speedMph)
+                        println("LocationProvider: Speed found")
+
                         launch { send(SpeedData(speedMph)) }
+                    } else {
+
+                        System.err.println("LocationProvider: Location does not have speed")
+                        println("LocationProvider: Does not have speed")
                     }
                 }
 
                 @Deprecated("Deprecated in Java")
-                override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
-                override fun onProviderEnabled(provider: String) {}
+                override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {
+                    println("LocationProvider: Status changed")
+                }
+                override fun onProviderEnabled(provider: String) {
+                    println("LocationProvider: Provider enabled")
+                }
                 override fun onProviderDisabled(provider: String) {
                     close(IllegalStateException("Location provider $provider disabled"))
                 }
             }
-            locationListener = listener // Store for removal
+            locationListener = listener
 
+            println("LocationProvider: Adding Listener")
             try {
                 locationManager.requestLocationUpdates(
                     LocationManager.GPS_PROVIDER,
@@ -79,6 +71,7 @@ class LocationProvider(private val context: Context) {
                     Looper.getMainLooper()
                 )
             } catch (e: Exception) {
+                println("LocationProvider: Started location updates with error: " + e)
                 close(e)
             }
 
@@ -88,6 +81,9 @@ class LocationProvider(private val context: Context) {
                 locationListener = null
             }
         }
+
+        val gpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
+        println("LocationProvider: GPS enabled: " + gpsEnabled)
         println("LocationProvider: Started location updates.")
     }
 
