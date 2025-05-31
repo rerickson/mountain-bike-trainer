@@ -33,23 +33,19 @@ class SensorDataProvider(context: Context) {
     private var linearAccelerationSensor: Sensor? = null
     private var maxGForce = 0f
     private var maxTotalLinearAcceleration = 0f
-    private val MOVING_AVERAGE_SIZE = 5 // Experiment with this size (3-10 is common)
+    private val MOVING_AVERAGE_SIZE = 5 // (3-10 is common)
     private val accelerationReadings = mutableListOf<Float>()
 
-    // Use MutableStateFlow to hold the latest processed data
-    // Initialize with default/empty data
     private val _processedData = MutableStateFlow(ProcessedSensorData())
     val processedData: StateFlow<ProcessedSensorData> = _processedData.asStateFlow()
 
     private var sensorJob: Job? = null
-    private val scope = CoroutineScope(Dispatchers.Default + Job()) // Use a dedicated scope
+    private val scope = CoroutineScope(Dispatchers.Default + Job())
 
     init {
         linearAccelerationSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
-        // You might want to add fallback to TYPE_ACCELEROMETER here as well
         if (linearAccelerationSensor == null) {
             println("SensorDataProvider: Linear Acceleration Sensor not available.")
-            // Potentially emit an error state or use a fallback
         }
     }
 
@@ -65,21 +61,15 @@ class SensorDataProvider(context: Context) {
 
         // Launch a new coroutine for sensor data collection
         sensorJob = scope.launch {
-            // callbackFlow is a good way to bridge callback-based APIs like SensorEventListener
-            // with Kotlin Flows.
             callbackFlow {
                 val listener = object : SensorEventListener {
                     override fun onSensorChanged(event: SensorEvent?) {
                         event?.let {
-                            // Try to offer the event to the flow.
-                            // If the channel is full (backpressure), it might suspend or drop.
-                            // For sensor data, 'trySend' is often fine as we only care about the latest.
                             trySend(it).isSuccess
                         }
                     }
 
                     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-                        // Handle accuracy changes if needed
                     }
                 }
 
@@ -89,7 +79,6 @@ class SensorDataProvider(context: Context) {
                     SensorManager.SENSOR_DELAY_FASTEST // Collect data as fast as possible
                 )
 
-                // Unregister listener when the flow is cancelled (coroutine is stopped)
                 awaitClose {
                     sensorManager.unregisterListener(listener)
                     println("SensorDataProvider: Listener unregistered.")
@@ -122,12 +111,12 @@ class SensorDataProvider(context: Context) {
             if (smoothedTotalLinearAcceleration > maxTotalLinearAcceleration) {
                 maxTotalLinearAcceleration = smoothedTotalLinearAcceleration
             }
-            if (gForce > maxGForce) { // Also consider if you want max G-Force based on smoothed data
+            if (gForce > maxGForce) {
                 maxGForce = gForce
             }
 
             _processedData.value = ProcessedSensorData(
-                totalLinearAcceleration = smoothedTotalLinearAcceleration, // Emit smoothed
+                totalLinearAcceleration = smoothedTotalLinearAcceleration,
                 gForce = gForce,
                 timestamp = event.timestamp,
                 maxGForce = maxGForce,

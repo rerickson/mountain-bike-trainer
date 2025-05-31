@@ -1,7 +1,5 @@
 package com.example.mountainbiketrainer
 
-import LocationProvider
-import SpeedData
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -39,13 +37,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onLocationPermissionsGranted() {
         _locationPermissionGranted.value = true
-       // locationProvider.startLocationUpdates()
     }
 
-    fun onLocationPermissionsDenied() {
-        _locationPermissionGranted.value = false
-        locationProvider.stopLocationUpdates() // Explicitly stop
-    }
 
     fun getCollecting(): Boolean {
         return _collecting.value
@@ -55,7 +48,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _collecting.value = !_collecting.value
         if (_collecting.value) {
             sensorDataProvider.startDataCollection()
-            // Location updates are handled by the 'currentSpeed' flow based on permission state
             println("ViewModel: Started data collection (sensors + location if permitted).")
         } else {
             sensorDataProvider.stopDataCollection()
