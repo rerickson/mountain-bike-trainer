@@ -1,14 +1,14 @@
-// In LocationProvider.kt
-
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.location.Location
-import android.location.LocationListener
-import android.location.LocationManager
-import android.os.Bundle
 import android.os.Looper
 import androidx.core.app.ActivityCompat
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,89 +21,95 @@ data class SpeedData(val speedMph: Float)
 
 class LocationProvider(private val context: Context) {
 
-    private val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
-    private var locationListener: LocationListener? = null
+    private val fusedLocationClient: FusedLocationProviderClient =
+        LocationServices.getFusedLocationProviderClient(context)
+
+    private var locationCallback: LocationCallback? = null
 
     private val _locationUpdatesFlow = MutableStateFlow<Flow<SpeedData>>(emptyFlow())
     val locationUpdates: Flow<SpeedData> = _locationUpdatesFlow.asStateFlow().value
 
+    private val locationRequest = LocationRequest.Builder(
+        Priority.PRIORITY_HIGH_ACCURACY,
+        MIN_TIME_BW_UPDATES_MS
+    )
+        .setMinUpdateIntervalMillis(MIN_UPDATE_INTERVAL_MS)
+        .setMinUpdateDistanceMeters(MIN_DISTANCE_CHANGE_FOR_UPDATES_METERS)
+        // .setWaitForAccurateLocation(true) // TODO Try this for more accurate locations
+        .build()
+
     fun startLocationUpdates() {
-        // Create the actual flow that emits location data
-        _locationUpdatesFlow.value = callbackFlow @androidx.annotation.RequiresPermission(allOf = [android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION]) {
-            val listener = object : LocationListener {
-                override fun onLocationChanged(location: Location) {
-                    println("LocationProvider: Location changed")
-
-                    if (location.hasSpeed()) {
-                        val speedMetersPerSecond = location.speed
-                        val speedMph = speedMetersPerSecond * 2.23694f
-                        System.err.println("LocationProvider: Found speed of: " + speedMph)
-                        println("LocationProvider: Speed found")
-
-                        launch { send(SpeedData(speedMph)) }
-                    } else {
-
-                        System.err.println("LocationProvider: Location does not have speed")
-                        println("LocationProvider: Does not have speed")
-                    }
-                }
-
-                @Deprecated("Deprecated in Java")
-                override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {
-                    println("LocationProvider: Status changed")
-                }
-                override fun onProviderEnabled(provider: String) {
-                    println("LocationProvider: Provider enabled")
-                }
-                override fun onProviderDisabled(provider: String) {
-                    close(IllegalStateException("Location provider $provider disabled"))
-                }
+        if (ActivityCompat.checkSelfPermission(
+                context, Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
+                context, Manifest.permission.ACCESS_COARSE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            System.err.println("FusedLocationProvider: Attempted to start updates without permission.")
+            _locationUpdatesFlow.value = callbackFlow {
+                close(SecurityException("Location permission not granted for FusedLocationProvider."))
             }
-            locationListener = listener
-
-            println("LocationProvider: Adding Listener")
-            try {
-                locationManager.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER,
-                    MIN_TIME_BW_UPDATES,
-                    MIN_DISTANCE_CHANGE_FOR_UPDATES,
-                    listener,
-                    Looper.getMainLooper()
-                )
-            } catch (e: Exception) {
-                println("LocationProvider: Started location updates with error: " + e)
-                close(e)
-            }
-
-            awaitClose {
-                println("LocationProvider: Stopping location updates.")
-                locationManager.removeUpdates(listener)
-                locationListener = null
-            }
+            return
         }
 
-        val gpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
-        println("LocationProvider: GPS enabled: " + gpsEnabled)
-        println("LocationProvider: Started location updates.")
+        _locationUpdatesFlow.value = callbackFlow {
+            val callback = object : LocationCallback() {
+                override fun onLocationResult(locationResult: LocationResult) {
+                    locationResult.lastLocation?.let { location ->
+                        // TODO FusedLocationProvider might sometimes return older locations first so check location.elapsedRealtimeNanos
+
+                        if (location.hasSpeed()) {
+                            val speedMetersPerSecond = location.speed
+                            val speedMph = speedMetersPerSecond * 2.23694f // Convert m/s to mph
+                            println("FusedLocationProvider: Speed available - ${speedMph} MPH from $location")
+                            launch { send(SpeedData(speedMph)) }
+                        } else {
+                            println("FusedLocationProvider: Location update received, but no speed data. Location: $location")
+                        }
+                    } ?: println("FusedLocationProvider: onLocationResult - lastLocation was null")
+
+                }
+            }
+            locationCallback = callback
+
+            println("FusedLocationProvider: PREPARING to call requestLocationUpdates...") // <--- ADD THIS
+
+            fusedLocationClient.requestLocationUpdates(
+                locationRequest,
+                callback,
+                Looper.getMainLooper()
+            ).addOnFailureListener { e ->
+                println("FusedLocationProvider: FAILED to request location updates: ${e.message}") // <---ENSURE THIS IS PRESENT
+                close(e)
+            }.addOnSuccessListener {
+                println("FusedLocationProvider: SUCCESSFULLY started location updates.") // <--- ENSURE THIS IS PRESENT
+            }
+
+            println("FusedLocationProvider: FINISHED calling requestLocationUpdates (Task submitted).") // <--- ADD THIS
+
+
+            awaitClose {
+                println("FusedLocationProvider: Stopping location updates.")
+                fusedLocationClient.removeLocationUpdates(callback)
+                locationCallback = null
+            }
+        }
+        println("FusedLocationProvider: Started location updates flow setup.")
     }
 
     fun stopLocationUpdates() {
-        // To explicitly stop, we can make the flow complete or switch to an empty flow
-        // The awaitClose in the callbackFlow will handle removing the listener.
-        // We might want to make _locationUpdatesFlow a conflated channel or similar
-        // if we want to "send" a stop signal, but for now, making it an empty flow
-        // when explicitly stopped is fine. The collection will just stop.
         _locationUpdatesFlow.value = emptyFlow()
-        locationListener?.let {
-            locationManager.removeUpdates(it) // Ensure cleanup if awaitClose wasn't triggered by scope cancellation
-            locationListener = null
+        locationCallback?.let {
+            fusedLocationClient.removeLocationUpdates(it)
+            locationCallback = null
+            println("FusedLocationProvider: Explicitly removed location callback in stopLocationUpdates.")
         }
-        println("LocationProvider: Explicitly stopped location updates.")
+        println("FusedLocationProvider: Explicitly stopped location updates.")
     }
 
-
     companion object {
-        private const val MIN_TIME_BW_UPDATES: Long = 1000 * 1 // 1 second
-        private const val MIN_DISTANCE_CHANGE_FOR_UPDATES: Float = 0f
+        private const val MIN_TIME_BW_UPDATES_MS: Long = 1000 // 1 second (desired interval)
+        private const val MIN_UPDATE_INTERVAL_MS: Long = 500 // Smallest possible interval
+        private const val MIN_DISTANCE_CHANGE_FOR_UPDATES_METERS: Float = 0f // Update on any movement
     }
 }

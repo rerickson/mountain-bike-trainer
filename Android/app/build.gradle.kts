@@ -61,6 +61,7 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation("com.squareup.okhttp3:okhttp:4.9.2")
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.play.services.location)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
