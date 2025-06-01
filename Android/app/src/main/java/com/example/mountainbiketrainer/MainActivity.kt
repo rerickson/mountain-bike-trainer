@@ -124,15 +124,15 @@ class MainActivity : ComponentActivity() {
                     val maxSpeedData by viewModel.maxSpeed.collectAsState()
                     MaxSpeedDisplay(maxSpeedData?.speedMph)
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     GForceDisplay(sensorData)
                 }
 
                 Divider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(1.dp))
 
                 SessionStatsDisplay(sensorData)
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(38.dp))
             }
         } else {
             Text("Permissions required")
@@ -214,7 +214,7 @@ class MainActivity : ComponentActivity() {
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

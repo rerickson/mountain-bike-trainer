@@ -33,6 +33,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 locationProvider.startLocationUpdates()
                 locationProvider.locationUpdates
                     .onEach { newSpeedData ->
+                        if(!_collecting.value) return@onEach
+
                         _currentSpeed.value = newSpeedData
 
                         newSpeedData?.let { current ->
@@ -55,7 +57,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _currentSpeed.value = null
                 MutableStateFlow<SpeedData?>(null)
             }
-        }.launchIn(viewModelScope) // Collect the flow within the ViewModel's scope
+        }.launchIn(viewModelScope)
     }
 
     fun onLocationPermissionsGranted() {
@@ -86,5 +88,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun resetMax() {
         sensorDataProvider.resetMax()
         _maxSpeed.value = null
+        _currentSpeed.value = null
     }
 }
