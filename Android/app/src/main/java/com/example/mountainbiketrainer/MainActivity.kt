@@ -13,8 +13,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.Divider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -96,7 +96,7 @@ class MainActivity : ComponentActivity() {
             val sensorData by viewModel.processedSensorData.collectAsState()
 
             Column (
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ){
                 Column(
@@ -104,25 +104,31 @@ class MainActivity : ComponentActivity() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    // TODO remove this
-                    Text(showLocationAccessState.value)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(onClick = { viewModel.toggleOverallDataCollection() }) {
+                            val buttonText = if (!viewModel.getCollecting()) "Start" else "Stop"
+                            Text(buttonText)
+                        }
 
-                    Button(onClick = { viewModel.toggleOverallDataCollection() }) {
-                        val buttonText = if (!viewModel.getCollecting()) "Start" else "Stop"
-                        Text(buttonText)
-                    }
-
-                    Button(onClick = { viewModel.resetMax() }) {
-                        Text("Reset")
+                        Button(onClick = { viewModel.resetMax() }) {
+                            Text("Reset")
+                        }
                     }
 
                     val speedData by viewModel.currentSpeed.collectAsState()
                     SpeedDisplay(speedData?.speedMph)
+
+                    val maxSpeedData by viewModel.maxSpeed.collectAsState()
+                    MaxSpeedDisplay(maxSpeedData?.speedMph)
+
                     Spacer(modifier = Modifier.height(24.dp))
                     GForceDisplay(sensorData)
                 }
 
-//                        HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                Divider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(modifier = Modifier.height(16.dp))
 
                 SessionStatsDisplay(sensorData)
@@ -135,8 +141,10 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     fun SpeedDisplay(speedMph: Float?) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
                 text = "SPEED",
                 style = MaterialTheme.typography.labelMedium,
@@ -157,11 +165,38 @@ class MainActivity : ComponentActivity() {
     }
 
     @Composable
-    fun GForceDisplay(gForceData: ProcessedSensorData?) {
-
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    fun MaxSpeedDisplay(speedMph: Float?) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
-                text = "G-FORCE",
+                text = "MAX SPEED",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = if (speedMph != null) "%.1f".format(speedMph) else "--.-",
+                fontSize = 72.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "MPH",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+
+    @Composable
+    fun GForceDisplay(gForceData: ProcessedSensorData?) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "MAX G-FORCE",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
