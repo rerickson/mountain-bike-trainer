@@ -1,16 +1,19 @@
 package com.example.mountainbiketrainer
 
 import android.app.Application
+import androidx.activity.result.launch
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 @Suppress("OPT_IN_USAGE")
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -26,6 +29,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val maxSpeed: StateFlow<SpeedData?> = _maxSpeed.asStateFlow()
 
     val processedSensorData: StateFlow<ProcessedSensorData> = sensorDataProvider.processedData
+    private val jumpDetector = JumpDetector()
+
+    private val _lastAirTime = MutableStateFlow<Float?>(null)
+    val lastAirTime: StateFlow<Float?> = _lastAirTime.asStateFlow()
 
     init {
         _locationPermissionGranted.flatMapLatest { granted ->
@@ -36,7 +43,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         if(!_collecting.value) return@onEach
 
                         _currentSpeed.value = newSpeedData
-
                         newSpeedData?.let { current ->
                             _maxSpeed.update { oldMax ->
                                 if (oldMax == null || current.speedMph > oldMax.speedMph) {
@@ -58,6 +64,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 MutableStateFlow<SpeedData?>(null)
             }
         }.launchIn(viewModelScope)
+
+        viewModelScope.launch {
+            processedSensorData
+                .filterNotNull()
+                .collect { data ->
+                    if (!_collecting.value) return@collect
+
+                     val airTime = jumpDetector.processSensorEvent(data)
+                     airTime?.let {
+                        _lastAirTime.value = it
+                     }
+                }
+        }
     }
 
     fun onLocationPermissionsGranted() {
@@ -89,5 +108,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         sensorDataProvider.resetMax()
         _maxSpeed.value = null
         _currentSpeed.value = null
+        _lastAirTime.value = null;
     }
 }

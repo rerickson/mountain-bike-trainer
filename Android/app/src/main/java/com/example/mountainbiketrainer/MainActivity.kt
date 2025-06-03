@@ -94,6 +94,7 @@ class MainActivity : ComponentActivity() {
         checkAndRequestLocationPermissions()
         if (showLocationAccessState.value.contains("granted")) {
             val sensorData by viewModel.processedSensorData.collectAsState()
+            val airTimeValue by viewModel.lastAirTime.collectAsState()
 
             Column (
                 modifier = Modifier.fillMaxWidth(),
@@ -126,6 +127,7 @@ class MainActivity : ComponentActivity() {
 
                     Spacer(modifier = Modifier.height(4.dp))
                     GForceDisplay(sensorData)
+                    AirTimeDisplay(airTimeValue)
                 }
 
                 Divider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
@@ -202,6 +204,24 @@ class MainActivity : ComponentActivity() {
             )
             Text(
                 text = if (gForceData != null) "%.2f".format(gForceData.maxGForce) + "g" else "-.--g",
+                fontSize = 48.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.secondary
+            )
+        }
+    }
+
+    @Composable
+    fun AirTimeDisplay(airTime: Float?) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "LAST AIR TIME"
+            )
+            Text(
+                text = if (airTime != null) String.format("%.2f s", airTime) else "-.--s",
                 fontSize = 48.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.secondary

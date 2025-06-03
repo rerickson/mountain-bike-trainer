@@ -19,13 +19,19 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlin.math.sqrt
 
+// Hold raw data for processing more later
+data class AccelerometerData(val x: Float, val y: Float, val z: Float, val timestamp: Long)
+data class GyroscopeData(val x: Float, val y: Float, val z: Float, val timestamp: Long)
+
 // Data class to hold our processed sensor values
 data class ProcessedSensorData(
     val totalLinearAcceleration: Float = 0f,
     val gForce: Float = 0f,
-    val timestamp: Long = 0L, // Optional: include timestamp of the event
+    val timestamp: Long = 0L,
     val maxGForce: Float = 0f,
-    val maxTotalLinearAcceleration: Float = 0f
+    val maxTotalLinearAcceleration: Float = 0f,
+    val accelerometerData: AccelerometerData? = null,
+    val gyroscopeData: GyroscopeData? = null
 )
 
 class SensorDataProvider(context: Context) {
@@ -59,7 +65,6 @@ class SensorDataProvider(context: Context) {
             return
         }
 
-        // Launch a new coroutine for sensor data collection
         sensorJob = scope.launch {
             callbackFlow {
                 val listener = object : SensorEventListener {
@@ -76,16 +81,16 @@ class SensorDataProvider(context: Context) {
                 sensorManager.registerListener(
                     listener,
                     linearAccelerationSensor,
-                    SensorManager.SENSOR_DELAY_FASTEST // Collect data as fast as possible
+                    SensorManager.SENSOR_DELAY_FASTEST
                 )
 
                 awaitClose {
                     sensorManager.unregisterListener(listener)
                     println("SensorDataProvider: Listener unregistered.")
                 }
-            }.onEach { event -> // Process each event received from the flow
+            }.onEach { event ->
                 processAndEmitSensorData(event)
-            }.launchIn(this) // Collect the flow within this coroutine
+            }.launchIn(this)
         }
         println("SensorDataProvider: Data collection started.")
     }
@@ -97,16 +102,19 @@ class SensorDataProvider(context: Context) {
             val z = event.values[2]
             val standardGravity = SensorManager.STANDARD_GRAVITY
 
+            val accelerometerData = AccelerometerData(x, y, z, event.timestamp)
+            // TODO need to get gyro data through another sensor
+            val gyroscopeData = GyroscopeData(0f, 0f, 0f, event.timestamp)
+
             val rawTotalLinearAcceleration = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
 
-            // Apply Moving Average to smooth out large readings
             accelerationReadings.add(rawTotalLinearAcceleration)
             if (accelerationReadings.size > MOVING_AVERAGE_SIZE) {
                 accelerationReadings.removeAt(0)
             }
             val smoothedTotalLinearAcceleration = accelerationReadings.average().toFloat()
 
-            val gForce = smoothedTotalLinearAcceleration / standardGravity // Use smoothed value for G-force too
+            val gForce = smoothedTotalLinearAcceleration / standardGravity
 
             if (smoothedTotalLinearAcceleration > maxTotalLinearAcceleration) {
                 maxTotalLinearAcceleration = smoothedTotalLinearAcceleration
@@ -120,7 +128,9 @@ class SensorDataProvider(context: Context) {
                 gForce = gForce,
                 timestamp = event.timestamp,
                 maxGForce = maxGForce,
-                maxTotalLinearAcceleration = maxTotalLinearAcceleration
+                maxTotalLinearAcceleration = maxTotalLinearAcceleration,
+                accelerometerData = accelerometerData,
+                gyroscopeData = gyroscopeData
             )
         }
     }
@@ -128,15 +138,12 @@ class SensorDataProvider(context: Context) {
     fun stopDataCollection() {
         sensorJob?.cancel()
         sensorJob = null
-        // Optionally reset the data when stopped
-        // _processedData.value = ProcessedSensorData()
         println("SensorDataProvider: Data collection stopped.")
     }
 
-    // Call this when the component holding SensorDataProvider is destroyed (e.g., ViewModel's onCleared)
     fun cleanup() {
         stopDataCollection()
-        scope.coroutineContext.cancel() // Cancel all coroutines in this scope
+        scope.coroutineContext.cancel()
         println("SensorDataProvider: Cleaned up.")
     }
 
