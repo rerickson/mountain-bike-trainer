@@ -1,12 +1,12 @@
 
-2.  **Open in Android Studio:**
+1. **Open in Android Studio:**
     *   Open Android Studio.
     *   Select "Open" and navigate to the cloned project directory.
     *   Allow Android Studio to sync Gradle and download dependencies.
-3.  **Permissions:**
+2. **Permissions:**
     *   The app requires Location permissions (`ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION`) to track speed and location.
     *   (Future) It may require `HIGH_SAMPLING_RATE_SENSORS` permission for more precise sensor data on supported devices.
-4.  **Run the app:**
+3. **Run the app:**
     *   Select a target device/emulator.
     *   Click the "Run" button (green play icon) in Android Studio.
     *   Grant necessary permissions when prompted by the app.

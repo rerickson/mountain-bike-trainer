@@ -1,7 +1,7 @@
 package com.example.mountainbiketrainer
 
 import android.app.Application
-import androidx.activity.result.launch
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +33,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _lastAirTime = MutableStateFlow<Float?>(null)
     val lastAirTime: StateFlow<Float?> = _lastAirTime.asStateFlow()
+
+    private val recordedAccelData = mutableListOf<AccelerometerData>()
 
     init {
         _locationPermissionGranted.flatMapLatest { granted ->
@@ -71,6 +73,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 .collect { data ->
                     if (!_collecting.value) return@collect
 
+                    data.accelerometerData?.let {
+                        recordedAccelData.add(it)
+                    }
                      val airTime = jumpDetector.processSensorEvent(data)
                      airTime?.let {
                         _lastAirTime.value = it
@@ -94,8 +99,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             println("ViewModel: Started data collection (sensors + location if permitted).")
         } else {
             sensorDataProvider.stopDataCollection()
+            exportRecordedAccelDataToLogcat()
             println("ViewModel: Stopped data collection.")
         }
+    }
+    private fun exportRecordedAccelDataToLogcat() {
+        if (recordedAccelData.isEmpty()) {
+            Log.i("MainViewModel", "No accelerometer data to export.")
+            return
+        }
+        Log.i("MainViewModel", "--- ACCELEROMETER DATA (CSV Format) ---")
+        Log.i("ACCEL_DATA_CSV", "timestamp_ns,accel_x,accel_y,accel_z") // Header
+        recordedAccelData.forEach { data ->
+            // Logcat has line length limits, so for very long recordings, file export is better
+            Log.d("ACCEL_DATA_CSV", "${data.timestamp},${data.x},${data.y},${data.z}")
+            // To find and replace the log prefix use this regex:
+            // ^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d{3,}\s+\d+-\d+\s+ACCEL_DATA_CSV\s+com\.example\.mountainbiketrainer\s+[A-Z]\s+
+        }
+        Log.i("MainViewModel", "--- END OF ACCELEROMETER DATA ---")
+         recordedAccelData.clear()
     }
 
     override fun onCleared() {
@@ -108,6 +130,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         sensorDataProvider.resetMax()
         _maxSpeed.value = null
         _currentSpeed.value = null
-        _lastAirTime.value = null;
+        _lastAirTime.value = null
     }
 }
