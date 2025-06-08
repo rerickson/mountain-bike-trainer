@@ -1,6 +1,5 @@
 package com.example.mountainbiketrainer
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.AlertDialog
@@ -35,8 +35,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import com.example.mountainbiketrainer.SessionFile
-import com.example.mountainbiketrainer.SessionViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -49,13 +47,37 @@ fun SessionScreen(navController: NavHostController, sessionViewModel: SessionVie
     val (showDeleteConfirmDialog, setShowDeleteConfirmDialog) = remember { mutableStateOf<SessionFile?>(null) }
 
     // Load files when the screen is first composed or recomposed after a relevant change
-    LaunchedEffect(Unit) { // Use a more specific key if refreshes are needed on other events
+    LaunchedEffect(Unit) {
         sessionViewModel.loadSessionFiles()
     }
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Recorded Sessions") })
+            TopAppBar(
+                title = { Text("Recorded Sessions") },
+                navigationIcon = {
+                    IconButton(onClick = {
+                        navController.popBackStack()
+                    }) {
+                        Icon(
+                            imageVector = Icons.Filled.ArrowBack,
+                            contentDescription = "Back to Main Screen"
+                        )
+                    }
+                },
+                actions = {
+                    if (sessionFiles.isNotEmpty()) {
+                        IconButton(onClick = {
+                            sessionViewModel.deleteAllSessionFiles()
+                        }) {
+                            Icon(
+                                imageVector = Icons.Filled.Delete,
+                                contentDescription = "Delete All Sessions"
+                            )
+                        }
+                    }
+                }
+            )
         }
     ) { paddingValues ->
         Column(modifier = Modifier
@@ -71,12 +93,7 @@ fun SessionScreen(navController: NavHostController, sessionViewModel: SessionVie
                         SessionFileItem(
                             sessionFile = sessionFile,
                             onDeleteClick = { setShowDeleteConfirmDialog(sessionFile) },
-                            onSendClick = { sessionViewModel.sendSessionFileToApi(sessionFile) },
-                            onItemClick = {
-                                // TODO: Implement what happens when an item is clicked
-                                // e.g., navigate to a detail/preview screen
-                                println("Clicked on: ${sessionFile.name}")
-                            }
+                            onSendClick = { sessionViewModel.sendSessionFileToApi(sessionFile) }
                         )
                         Divider()
                     }
@@ -85,7 +102,6 @@ fun SessionScreen(navController: NavHostController, sessionViewModel: SessionVie
         }
     }
 
-    // Confirmation Dialog for Delete
     showDeleteConfirmDialog?.let { fileToDelete ->
         AlertDialog(
             onDismissRequest = { setShowDeleteConfirmDialog(null) },
@@ -112,15 +128,13 @@ fun SessionScreen(navController: NavHostController, sessionViewModel: SessionVie
 fun SessionFileItem(
     sessionFile: SessionFile,
     onDeleteClick: () -> Unit,
-    onSendClick: () -> Unit,
-    onItemClick: () -> Unit
+    onSendClick: () -> Unit
 ) {
     val dateFormatter = remember { SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()) }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onItemClick() }
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

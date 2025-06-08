@@ -118,14 +118,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             // Launch a coroutine for file I/O operations off the main thread
             viewModelScope.launch {
-                exportRecordedAccelDataToLogcat(recordedAccelData) // Write to logs
+                exportRecordedAccelDataToLogcat(recordedAccelData)
                 exportRecordedDataToJsonFile(getApplication<Application>().applicationContext, recordedAccelData, currentDate)
             }
             // Reset session ID after processing
              currentSessionId = null
-//            Log.i("MainViewModel", "Created Session ID: $currentSessionId")
-//            exportRecordedAccelDataToLogcat()
-//            println("ViewModel: Stopped data collection.")
         }
     }
 
@@ -183,5 +180,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _maxSpeed.value = null
         _currentSpeed.value = null
         _lastAirTime.value = null
+        recordedAccelData.clear()
     }
 }

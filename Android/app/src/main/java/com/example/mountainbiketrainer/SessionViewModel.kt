@@ -71,7 +71,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 val file = File(fileToDelete.path)
                 if (file.exists() && file.delete()) {
                     Log.i("SessionViewModel", "Deleted file: ${fileToDelete.name}")
-                    loadSessionFiles() // Refresh the list
+                    loadSessionFiles()
                 } else {
                     Log.e("SessionViewModel", "Error deleting file: ${fileToDelete.name}")
                     // Optionally, communicate this error to the UI via another StateFlow
@@ -83,7 +83,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun sendSessionFileToApi(sessionFile: SessionFile) {
-        viewModelScope.launch { // Keep on main thread for now, delegate to IO in actual API call
+        viewModelScope.launch {
             try {
                 val file = File(sessionFile.path)
                 if (!file.exists()) {
@@ -133,6 +133,39 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             } catch (e: Exception) { // Catch specific network exceptions if your client throws them
                 Log.e("SessionViewModel", "Network or other error during API call for $fileName", e)
                 return@withContext false
+            }
+        }
+    }
+
+    fun deleteAllSessionFiles() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val context = getApplication<Application>().applicationContext
+                val directory = File(context.filesDir, "sensor_recordings")
+                var allDeleted = true
+                if (directory.exists() && directory.isDirectory) {
+                    directory.listFiles { file ->
+                        // Optional: Ensure you only delete files matching your pattern
+                        file.isFile && file.name.startsWith("session_accel_") && file.name.endsWith(".json")
+                    }?.forEach { file ->
+                        if (!file.delete()) {
+                            Log.e("SessionViewModel", "Failed to delete file: ${file.name}")
+                            allDeleted = false // Mark if any file fails to delete
+                        }
+                    }
+
+                    if (allDeleted) {
+                        Log.i("SessionViewModel", "All session files deleted successfully.")
+                    } else {
+                        Log.w("SessionViewModel", "Some session files could not be deleted.")
+                    }
+                    loadSessionFiles() // Refresh the list
+                } else {
+                    Log.i("SessionViewModel", "Sensor recordings directory not found for delete all.")
+                }
+            } catch (e: Exception) {
+                Log.e("SessionViewModel", "Error deleting all session files", e)
+                // Also communicate this error to the UI
             }
         }
     }
