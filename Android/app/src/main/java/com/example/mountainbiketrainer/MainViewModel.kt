@@ -144,12 +144,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 val file = File(directory, "session_accel_$sessionId.json")
 
-                val mapper: ObjectMapper = ObjectMapper()
+                val mapper = ObjectMapper()
 
                 val jsonString: String = mapper.writeValueAsString(data)
-
-                // kotlinx.serialization for JSON
-                //val jsonString = Json.encodeToString(data)
 
                 FileWriter(file).use { writer -> // use automatically closes the writer
                     writer.write(jsonString)

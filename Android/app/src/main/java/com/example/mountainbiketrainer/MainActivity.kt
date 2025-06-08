@@ -5,270 +5,134 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.material3.Button
-import androidx.compose.material3.Divider
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.example.mountainbiketrainer.ui.theme.MountainBikeTrainerTheme
 
 class MainActivity : ComponentActivity() {
 
-    private lateinit var viewModel: MainViewModel
-    private val showLocationAccessState = mutableStateOf("Checking permissions...")
-    private val showPermissionRationaleDialog = mutableStateOf(false)
+    private lateinit var mainViewModel: MainViewModel
+    private lateinit var sessionViewModel: SessionViewModel
 
-    private val requestLocationPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
-            val fineLocationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
-            val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
-
-            if (fineLocationGranted) {
-                showLocationAccessState.value = "Fine location granted"
-            } else if (coarseLocationGranted) {
-                showLocationAccessState.value = "Coarse location granted"
-            } else {
-                showLocationAccessState.value = "Location permission denied"
-                showPermissionRationaleDialog.value = true
-            }
-        }
+    // --- Permission Handling Logic ---
+    private lateinit var requestLocationPermissionLauncher: ActivityResultLauncher<Array<String>>
+    private val _locationPermissionState = mutableStateOf(LocationPermissionStatus.CHECKING)
+    val locationPermissionState: State<LocationPermissionStatus> = _locationPermissionState
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        viewModel = ViewModelProvider(this)[MainViewModel::class.java]
+
+        mainViewModel = ViewModelProvider(this)[MainViewModel::class.java]
+        sessionViewModel = ViewModelProvider(this)[SessionViewModel::class.java]
+
+        requestLocationPermissionLauncher =
+            registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+                val fineLocationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+                val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+
+                if (fineLocationGranted) {
+                    _locationPermissionState.value = LocationPermissionStatus.GRANTED_FINE
+                    mainViewModel.onLocationPermissionsGranted() // Notify ViewModel
+                } else if (coarseLocationGranted) {
+                    _locationPermissionState.value = LocationPermissionStatus.GRANTED_COARSE
+                    mainViewModel.onLocationPermissionsGranted() // Notify ViewModel
+                } else {
+                    _locationPermissionState.value = LocationPermissionStatus.DENIED
+                }
+            }
+
+        checkAndRequestLocationPermissions()
 
         setContent {
-            MountainBikeTrainerTheme (dynamicColor = false){
+            MountainBikeTrainerTheme(dynamicColor = false) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    LocationPermissionScreenContent(viewModel)
+                    AppNavigation(
+                        mainViewModel = mainViewModel,
+                        sessionViewModel = sessionViewModel,
+                        locationPermissionStatus = locationPermissionState.value, // Pass current status
+                        onRequestPermissions = { checkAndRequestLocationPermissions() } // Pass request function
+                    )
                 }
             }
         }
     }
 
-    private fun checkAndRequestLocationPermissions() {
+    fun checkAndRequestLocationPermissions() {
+        _locationPermissionState.value = LocationPermissionStatus.CHECKING
         val fineLocationPermission = Manifest.permission.ACCESS_FINE_LOCATION
         val coarseLocationPermission = Manifest.permission.ACCESS_COARSE_LOCATION
 
         val fineLocationGranted = ContextCompat.checkSelfPermission(this, fineLocationPermission) == PackageManager.PERMISSION_GRANTED
         val coarseLocationGranted = ContextCompat.checkSelfPermission(this, coarseLocationPermission) == PackageManager.PERMISSION_GRANTED
 
-        val permissionsToRequest = mutableListOf<String>()
-        if (!fineLocationGranted) {
-            permissionsToRequest.add(fineLocationPermission)
-        }
-        if (!coarseLocationGranted) {
-            permissionsToRequest.add(coarseLocationPermission)
-        }
-
-        if (permissionsToRequest.isNotEmpty()) {
-            requestLocationPermissionLauncher.launch(permissionsToRequest.toTypedArray())
-        } else {
-            showLocationAccessState.value = "granted."
-            viewModel.onLocationPermissionsGranted()
-        }
-    }
-
-
-    @Composable
-    fun LocationPermissionScreenContent(viewModel: MainViewModel) {
-        checkAndRequestLocationPermissions()
-        if (showLocationAccessState.value.contains("granted")) {
-            val sensorData by viewModel.processedSensorData.collectAsState()
-            val airTimeValue by viewModel.lastAirTime.collectAsState()
-
-            Column (
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ){
-                Column(
-                    modifier = Modifier.weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Button(onClick = { viewModel.toggleOverallDataCollection() }) {
-                            val buttonText = if (!viewModel.getCollecting()) "Start" else "Stop"
-                            Text(buttonText)
-                        }
-
-                        Button(onClick = { viewModel.resetMax() }) {
-                            Text("Reset")
-                        }
-                    }
-
-                    val speedData by viewModel.currentSpeed.collectAsState()
-                    SpeedDisplay(speedData?.speedMph)
-
-                    val maxSpeedData by viewModel.maxSpeed.collectAsState()
-                    MaxSpeedDisplay(maxSpeedData?.speedMph)
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    GForceDisplay(sensorData)
-                    AirTimeDisplay(airTimeValue)
-                }
-
-                Divider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
-                Spacer(modifier = Modifier.height(1.dp))
-
-                SessionStatsDisplay(sensorData)
-                Spacer(modifier = Modifier.height(38.dp))
+        when {
+            fineLocationGranted -> {
+                _locationPermissionState.value = LocationPermissionStatus.GRANTED_FINE
+                mainViewModel.onLocationPermissionsGranted()
             }
-        } else {
-            Text("Permissions required")
-        }
-    }
-
-    @Composable
-    fun SpeedDisplay(speedMph: Float?) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "SPEED",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = if (speedMph != null) "%.1f".format(speedMph) else "--.-",
-                fontSize = 72.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = "MPH",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-
-    @Composable
-    fun MaxSpeedDisplay(speedMph: Float?) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "MAX SPEED",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = if (speedMph != null) "%.1f".format(speedMph) else "--.-",
-                fontSize = 72.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = "MPH",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-
-    @Composable
-    fun GForceDisplay(gForceData: ProcessedSensorData?) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "MAX G-FORCE",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = if (gForceData != null) "%.2f".format(gForceData.maxGForce) + "g" else "-.--g",
-                fontSize = 48.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.secondary
-            )
-        }
-    }
-
-    @Composable
-    fun AirTimeDisplay(airTime: Float?) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "LAST AIR TIME"
-            )
-            Text(
-                text = if (airTime != null) String.format("%.2f s", airTime) else "-.--s",
-                fontSize = 48.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.secondary
-            )
-        }
-    }
-
-    @Composable
-    fun SessionStatsDisplay(stats: ProcessedSensorData?) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceAround
-            ) {
-                StatItem("Max Linear Accel", if (stats?.maxTotalLinearAcceleration != null) "%.1f m/s^2".format(stats.maxTotalLinearAcceleration) else "--")
-                StatItem("Current Linear Accel", if (stats?.totalLinearAcceleration != null) "%.1f m/s^2".format(stats.totalLinearAcceleration) else "--")
-                StatItem("Timestamp", (stats?.timestamp ?: "--").toString())
-
+            coarseLocationGranted -> {
+                _locationPermissionState.value = LocationPermissionStatus.GRANTED_COARSE
+                mainViewModel.onLocationPermissionsGranted()
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceAround
-            ) {
-//                StatItem("Distance", if (stats?.distanceMiles != null) "%.1f mi".format(stats.distanceMiles) else "--")
-//                StatItem("Max G-Force", if (stats?.maxGForce != null) "%.2fg".format(stats.maxGForce) else "--")
+            shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION) ||
+                    shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION) -> {
+                // This is where you'd typically show a custom rationale dialog
+                // For now, we'll mark as denied and let MainScreen handle the UI
+                _locationPermissionState.value = LocationPermissionStatus.DENIED_RATIONALE
+                // _showPermissionRationaleDialog.value = true
             }
-            //StatItem("Time", stats?.elapsedTimeFormatted ?: "--:--:--")
+            else -> {
+                // Request permissions
+                requestLocationPermissionLauncher.launch(
+                    arrayOf(fineLocationPermission, coarseLocationPermission)
+                )
+            }
         }
     }
+}
 
-    @Composable
-    fun StatItem(label: String, value: String) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+// Enum to represent permission status more clearly
+enum class LocationPermissionStatus {
+    CHECKING,
+    GRANTED_FINE,
+    GRANTED_COARSE,
+    DENIED,
+    DENIED_RATIONALE // When rationale should be shown
+}
+
+// Your AppNavigation needs to accept and pass these down
+@Composable
+fun AppNavigation(
+    mainViewModel: MainViewModel,
+    sessionViewModel: SessionViewModel,
+    locationPermissionStatus: LocationPermissionStatus,
+    onRequestPermissions: () -> Unit
+) {
+    val navController: NavHostController = rememberNavController()
+    NavHost(
+        navController = navController,
+        startDestination = "mainScreen"
+    ) {
+        composable(route = "mainScreen") {
+            MainScreen(
+                navController = navController,
+                mainViewModel = mainViewModel,
+                locationPermissionStatus = locationPermissionStatus,
+                onRequestPermissions = onRequestPermissions
             )
-            Text(
-                text = value,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium
-            )
+        }
+        composable(route = "sessionFiles") {
+            SessionScreen(navController = navController, sessionViewModel = sessionViewModel)
         }
     }
 }
