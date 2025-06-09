@@ -1,23 +1,32 @@
 package com.example.mountainbiketrainer
 
 import android.Manifest
+import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.provider.DocumentsContract
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.activity.result.launch
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.mountainbiketrainer.ui.theme.MountainBikeTrainerTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -29,11 +38,37 @@ class MainActivity : ComponentActivity() {
     private val _locationPermissionState = mutableStateOf(LocationPermissionStatus.CHECKING)
     val locationPermissionState: State<LocationPermissionStatus> = _locationPermissionState
 
+    private lateinit var createFileLauncher: ActivityResultLauncher<Intent>
+    private var pendingSaveRequest: SaveFileRequest? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         mainViewModel = ViewModelProvider(this)[MainViewModel::class.java]
         sessionViewModel = ViewModelProvider(this)[SessionViewModel::class.java]
+
+        createFileLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                result.data?.data?.let { uri ->
+                    // URI received, now write the data using the ViewModel
+                    pendingSaveRequest?.let { request ->
+                        mainViewModel.writeDataToUri(uri, request.dataToSave)
+                        pendingSaveRequest = null // Clear the pending request
+                    }
+                }
+            } else {
+                // Handle cancellation or failure
+                android.util.Log.w("MainActivity", "File creation was cancelled or failed.")
+                pendingSaveRequest = null
+            }
+        }
+        // Observe requests from ViewModel to save a file
+        lifecycleScope.launch { // Use lifecycleScope for long-running UI-related coroutines
+            mainViewModel.saveFileRequestFlow.collect { request ->
+                pendingSaveRequest = request // Store the data temporarily
+                createJsonFile(request.suggestedName)
+            }
+        }
 
         requestLocationPermissionLauncher =
             registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
@@ -67,6 +102,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun createJsonFile(suggestedName: String) {
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/json" // MIME type for JSON
+            putExtra(Intent.EXTRA_TITLE, suggestedName)
+
+             val documentsDirUri = DocumentsContract.buildDocumentUri(
+                 "com.android.externalstorage.documents",
+                 "primary:Documents"
+             )
+             putExtra(DocumentsContract.EXTRA_INITIAL_URI, documentsDirUri)
+        }
+        createFileLauncher.launch(intent)
+    }
+
     fun checkAndRequestLocationPermissions() {
         _locationPermissionState.value = LocationPermissionStatus.CHECKING
         val fineLocationPermission = Manifest.permission.ACCESS_FINE_LOCATION
@@ -89,7 +139,6 @@ class MainActivity : ComponentActivity() {
                 // This is where you'd typically show a custom rationale dialog
                 // For now, we'll mark as denied and let MainScreen handle the UI
                 _locationPermissionState.value = LocationPermissionStatus.DENIED_RATIONALE
-                // _showPermissionRationaleDialog.value = true
             }
             else -> {
                 // Request permissions

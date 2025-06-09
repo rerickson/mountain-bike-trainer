@@ -13,10 +13,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 
-// Data class to represent a file item in the UI (can be kept here or in a separate models file)
-// If it's already defined elsewhere and imported in SessionScreen.kt, you don't need to redefine.
-// For clarity, I'm including it here. If SessionScreen.kt already imports it from a different
-// location (like your original MainViewModel), ensure you're using that same definition.
 data class SessionFile(
     val name: String,
     val path: String,
@@ -28,10 +24,6 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     private val _sessionFiles = MutableStateFlow<List<SessionFile>>(emptyList())
     val sessionFiles: StateFlow<List<SessionFile>> = _sessionFiles.asStateFlow()
-
-    // You might want to move API client logic to a repository or a dedicated ApiService class
-    // For simplicity here, it's included, but consider abstracting it for better testability.
-    // private val apiClient = YourApiClient() // Example if you had a separate API client
 
     init {
         loadSessionFiles() // Load files when ViewModel is created

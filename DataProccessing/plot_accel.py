@@ -1,48 +1,28 @@
-import pandas as pd
+import json
 import matplotlib.pyplot as plt
 
-# Load the CSV file
-try:
-    # Adjust column names if your header is different
-    df = pd.read_csv('accel_recording2.csv')
-except FileNotFoundError:
-    print("Error: accel_recording.csv not found. Make sure it's in the same directory as the script.")
-    exit()
-except Exception as e:
-    print(f"Error loading CSV: {e}")
-    exit()
+# Load nanoTime data from JSON file
+with open("session_accel_20250608_182417.json", "r") as f:
+    data = json.load(f)
 
-if df.empty:
-    print("CSV file is empty.")
-    exit()
+# Get first timestamp to use as a zero reference
+start_time_ns = data[0]["timestamp"]
 
-# Ensure required columns exist
-required_columns = ['timestamp_ns', 'accel_x', 'accel_y', 'accel_z']
-if not all(col in df.columns for col in required_columns):
-    print(f"CSV must contain columns: {', '.join(required_columns)}")
-    print(f"Found columns: {df.columns.tolist()}")
-    exit()
+# Convert to relative seconds
+times_sec = [(entry["timestamp"] - start_time_ns) / 1e9 for entry in data]
+x_vals = [entry["x"] for entry in data]
+y_vals = [entry["y"] for entry in data]
+z_vals = [entry["z"] for entry in data]
 
+# Plotting
+plt.figure(figsize=(10, 6))
+plt.plot(times_sec, x_vals, label="X", marker='o')
+plt.plot(times_sec, y_vals, label="Y", marker='o')
+plt.plot(times_sec, z_vals, label="Z", marker='o')
 
-# Convert timestamp from nanoseconds to seconds for a more readable x-axis
-# Create a relative time axis starting from 0
-df['time_s'] = (df['timestamp_ns'] - df['timestamp_ns'].iloc[0]) / 1_000_000_000.0
-
-# Create the plot
-plt.figure(figsize=(15, 8))
-
-plt.plot(df['time_s'], df['accel_x'], label='Accel X')
-plt.plot(df['time_s'], df['accel_y'], label='Accel Y')
-plt.plot(df['time_s'], df['accel_z'], label='Accel Z (Vertical Focus)')
-
-# Add a plot for magnitude (optional, but often useful)
-# df['accel_magnitude'] = (df['accel_x']**2 + df['accel_y']**2 + df['accel_z']**2)**0.5
-# plt.plot(df['time_s'], df['accel_magnitude'], label='Accel Magnitude', linestyle=':')
-
-
-plt.title('Linear Accelerometer Data Over Time')
-plt.xlabel('Time (seconds from start of recording)')
-plt.ylabel('Acceleration (m/s^2)')
+plt.title("Accelerometer Data Over Time")
+plt.xlabel("Time Since Start (seconds)")
+plt.ylabel("Acceleration")
 plt.legend()
 plt.grid(True)
 plt.tight_layout()

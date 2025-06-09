@@ -2,11 +2,14 @@ package com.example.mountainbiketrainer
 
 import android.app.Application
 import android.content.Context
+import android.net.Uri
 import android.util.Log
+import androidx.compose.ui.text.intl.Locale
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.fasterxml.jackson.databind.ObjectMapper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +18,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -23,6 +27,9 @@ import java.io.FileWriter
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
+import kotlin.text.format
+
+data class SaveFileRequest(val suggestedName: String, val dataToSave: List<AccelerometerData>)
 
 @Suppress("OPT_IN_USAGE")
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -42,6 +49,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _lastAirTime = MutableStateFlow<Float?>(null)
     val lastAirTime: StateFlow<Float?> = _lastAirTime.asStateFlow()
+
+    private val _saveFileRequestChannel = Channel<SaveFileRequest>()
+    val saveFileRequestFlow = _saveFileRequestChannel.receiveAsFlow()
 
     private val recordedAccelData = mutableListOf<AccelerometerData>()
     private var currentSessionId: String? = null
@@ -116,43 +126,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 Log.i("MainViewModel", "No accelerometer data to export.")
                 return
             }
-            // Launch a coroutine for file I/O operations off the main thread
+            val suggestedFileName = "session_accel_$currentDate.json"
+
             viewModelScope.launch {
-                exportRecordedAccelDataToLogcat(recordedAccelData)
-                exportRecordedDataToJsonFile(getApplication<Application>().applicationContext, recordedAccelData, currentDate)
+//                exportRecordedAccelDataToLogcat(recordedAccelData)
+                _saveFileRequestChannel.send(SaveFileRequest(suggestedFileName, ArrayList(recordedAccelData)))
+                 recordedAccelData.clear() // Clear after sending the request or after successful save
             }
-            // Reset session ID after processing
-             currentSessionId = null
+//            // Launch a coroutine for file I/O operations off the main thread
+//            viewModelScope.launch {
+//                exportRecordedAccelDataToLogcat(recordedAccelData)
+//                exportRecordedDataToJsonFile(getApplication<Application>().applicationContext, recordedAccelData, currentDate)
+//            }
+//            // Reset session ID after processing
+//             currentSessionId = null
         }
     }
 
-    private suspend fun exportRecordedDataToJsonFile(context: Context, data: List<AccelerometerData>, sessionId: String) {
-        if (data.isEmpty()) {
-            Log.i("MainViewModel", "No accelerometer data to save to JSON file.")
-            return
-        }
-
-        // Perform file I/O on a background dispatcher
-        withContext(Dispatchers.IO) {
+    fun writeDataToUri(uri: Uri, data: List<AccelerometerData>) {
+        viewModelScope.launch(Dispatchers.IO) {
             try {
-                val directory = File(context.filesDir, "sensor_recordings")
-                if (!directory.exists()) {
-                    directory.mkdirs()
+                getApplication<Application>().contentResolver.openOutputStream(uri)?.use { outputStream ->
+                    val mapper = ObjectMapper()
+                    val jsonString: String = mapper.writeValueAsString(data)
+                    outputStream.write(jsonString.toByteArray())
+                    Log.i("MainViewModel", "Accelerometer data saved to URI: $uri")
+                    recordedAccelData.clear() // Clear data after successful save
+                } ?: run {
+                    Log.e("MainViewModel", "Failed to open OutputStream for URI: $uri")
                 }
-                val file = File(directory, "session_accel_$sessionId.json")
-
-                val mapper = ObjectMapper()
-
-                val jsonString: String = mapper.writeValueAsString(data)
-
-                FileWriter(file).use { writer -> // use automatically closes the writer
-                    writer.write(jsonString)
-                }
-                Log.i("MainViewModel", "Accelerometer data saved to: ${file.absolutePath}")
             } catch (e: IOException) {
-                Log.e("MainViewModel", "Error saving accelerometer data to JSON file", e)
-            } catch (e: Exception) { // Catch other serialization errors
-                Log.e("MainViewModel", "Error during JSON serialization or file writing", e)
+                Log.e("MainViewModel", "Error saving data to URI", e)
+            } catch (e: Exception) {
+                Log.e("MainViewModel", "Error during JSON serialization or file writing to URI", e)
             }
         }
     }
