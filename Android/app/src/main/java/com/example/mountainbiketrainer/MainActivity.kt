@@ -10,7 +10,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.result.launch
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -136,8 +135,6 @@ class MainActivity : ComponentActivity() {
             }
             shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION) ||
                     shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION) -> {
-                // This is where you'd typically show a custom rationale dialog
-                // For now, we'll mark as denied and let MainScreen handle the UI
                 _locationPermissionState.value = LocationPermissionStatus.DENIED_RATIONALE
             }
             else -> {
@@ -159,7 +156,6 @@ enum class LocationPermissionStatus {
     DENIED_RATIONALE // When rationale should be shown
 }
 
-// Your AppNavigation needs to accept and pass these down
 @Composable
 fun AppNavigation(
     mainViewModel: MainViewModel,

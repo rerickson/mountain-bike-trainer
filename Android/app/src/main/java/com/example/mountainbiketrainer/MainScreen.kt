@@ -37,11 +37,11 @@ fun MainScreen(
     ) {
         Text("MTB Trainer", style = MaterialTheme.typography.headlineSmall)
         Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = {
-            navController.navigate("sessionFiles")
-        }) {
-            Text("View Recorded Sessions")
-        }
+//        Button(onClick = {
+//            navController.navigate("sessionFiles")
+//        }) {
+//            Text("View Recorded Sessions")
+//        }
 
         // Content based on permission status
         when (locationPermissionStatus) {
