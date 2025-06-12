@@ -20,21 +20,14 @@
 5.  Press the **"Stop"** button to pause data collection.
 6.  Use the **"Reset"** button to clear maximum speed and G-force readings for the current session.
 
-## Current Status & Future Development
-
-*   Basic tracking of speed, max speed, and max G-forces
-*   Experimental jump air time detection is in early stages and requires further refinement and testing.
-
-**Planned Features / Areas for Improvement:**
-
-*   Pitch and Roll detection during a jump
-*   More robust jump detection algorithms (potentially incorporating ML).
-*   Calculation and display of jump height and distance (challenging).
-*   Detailed jump analysis (takeoff Gs, landing Gs, orientation).
-*   Saving and reviewing past sessions.
 
 ## Known Issues
 
 *   Jump detection (Air Time) is experimental and may not be accurate in all conditions. Thresholds need tuning.
 *   GPS speed accuracy can vary depending on signal strength and environment.
 *   (Add any other known issues you've encountered)
+
+
+## License
+
+This project is licensed under the MIT License. See the LICENSE file for more details.
