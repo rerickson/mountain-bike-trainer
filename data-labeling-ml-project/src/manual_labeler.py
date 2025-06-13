@@ -12,13 +12,17 @@ def load_raw_data(raw_data_dir):
 
 def label_jumps_with_ui(data, value_key="z"):
     timestamps = [entry["timestamp"] for entry in data]
-    values = [entry[value_key] for entry in data]
+    x_values = [entry.get("x", 0) for entry in data]
+    y_values = [entry.get("y", 0) for entry in data]
+    z_values = [entry.get("z", 0) for entry in data]
 
     fig, ax = plt.subplots()
-    ax.plot(timestamps, values, label=value_key)
-    ax.set_title("Click to mark start and end of jumps (pairs)")
+    ax.plot(timestamps, x_values, label="x", alpha=0.5)
+    ax.plot(timestamps, y_values, label="y", alpha=0.5)
+    ax.plot(timestamps, z_values, label="z", alpha=0.8, linewidth=2 if value_key == "z" else 1.2)
+    ax.set_title(f"Click to mark start and end of jumps (pairs) - Labeling: {value_key}")
     ax.set_xlabel("Timestamp")
-    ax.set_ylabel(value_key)
+    ax.set_ylabel("Value")
     plt.legend()
 
     clicks = []
@@ -57,8 +61,15 @@ def main():
     raw_data_files = load_raw_data(raw_data_dir)
     for i, data in enumerate(raw_data_files):
         print(f"Labeling file {i+1}/{len(raw_data_files)}")
-        jump_ranges = label_jumps_with_ui(data, value_key="z")
-        save_labeled_data(jump_ranges, labeled_data_dir, f"labeled_jumps_{i}.json")
+        while True:
+            jump_ranges = label_jumps_with_ui(data, value_key="z")
+            print(f"\nYou marked {len(jump_ranges)} jump(s).")
+            user_input = input("Press [Enter] to accept, or type 'r' to redo labeling: ").strip().lower()
+            if user_input == "r":
+                print("Restarting labeling for this file...")
+                continue
+            save_labeled_data(jump_ranges, labeled_data_dir, f"labeled_jumps_{i}.json")
+            break
 
 if __name__ == "__main__":
     main()
