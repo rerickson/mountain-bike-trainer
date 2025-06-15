@@ -21,12 +21,6 @@ data class GyroscopeEvent(
     val z: Float,
     override val type: String = "gyroscope"
 ) : TimestampedSensorEvent
-//    private val linearAccel: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
-//    private val barometer: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
-//    private val pressure: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_PRESSURE)
-//    private val gravity: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY)
-//    private val rotationVector: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
-//    private val geomagneticField: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_GEOMAGNETIC_ROTATION_VECTOR)
 
 data class LinearAccelEvent(
     override val timestamp: Long,
@@ -38,12 +32,9 @@ data class LinearAccelEvent(
 
 data class BarometerEvent(
     override val timestamp: Long,
-    val xUncalib: Float,
-    val yUncalib: Float,
-    val zUncalib: Float,
-    val xBias: Float,
-    val yBias: Float,
-    val zBias: Float,
+    val x: Float,
+    val y: Float,
+    val z: Float,
     override val type: String = "barometer"
 ) : TimestampedSensorEvent
 
@@ -68,7 +59,7 @@ data class RotationVectorEvent(
     val y: Float,
     val z: Float,
     val w: Float,
-    val headingAccuracy: Float?,
+    val headingAccuracy: Int,
     override val type: String = "rotationVector"
 ) : TimestampedSensorEvent
 

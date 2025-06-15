@@ -75,7 +75,6 @@ fun MainScreen(
 
 @Composable
 fun LocationDataContent(mainViewModel: MainViewModel) {
-    val sensorData by mainViewModel.processedSensorData.collectAsState()
     val airTimeValue by mainViewModel.lastAirTime.collectAsState()
 
     Column (
@@ -100,20 +99,20 @@ fun LocationDataContent(mainViewModel: MainViewModel) {
 
         // Data Displays - these should ideally be in their own file or section
         val speedData by mainViewModel.currentSpeed.collectAsState()
-        SpeedDisplay(speedData?.speedMph)
+        SpeedDisplay(speedData?.speedMps)
 
         val maxSpeedData by mainViewModel.maxSpeed.collectAsState()
-        MaxSpeedDisplay(maxSpeedData?.speedMph)
+        MaxSpeedDisplay(maxSpeedData?.speedMps)
 
         Spacer(modifier = Modifier.height(8.dp))
-        GForceDisplay(sensorData)
+        GForceDisplay(mainViewModel.maxGForce.collectAsState().value)
         AirTimeDisplay(airTimeValue)
 
         Spacer(modifier = Modifier.height(16.dp))
         Divider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
         Spacer(modifier = Modifier.height(8.dp))
 
-        SessionStatsDisplay(sensorData)
+        SessionStatsDisplay(mainViewModel)
     }
 }
 
@@ -168,7 +167,7 @@ fun MaxSpeedDisplay(speedMph: Float?) {
 }
 
 @Composable
-fun GForceDisplay(gForceData: ProcessedSensorData?) {
+fun GForceDisplay(gForceData: Float?) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -179,7 +178,7 @@ fun GForceDisplay(gForceData: ProcessedSensorData?) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            text = if (gForceData != null) "%.2f".format(gForceData.maxGForce) + "g" else "-.--g",
+            text = if (gForceData != null) "%.2f".format(gForceData) + "g" else "-.--g",
             fontSize = 48.sp,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.secondary
@@ -206,7 +205,7 @@ fun AirTimeDisplay(airTime: Float?) {
 }
 
 @Composable
-fun SessionStatsDisplay(stats: ProcessedSensorData?) {
+fun SessionStatsDisplay(viewModel: MainViewModel) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -216,9 +215,12 @@ fun SessionStatsDisplay(stats: ProcessedSensorData?) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceAround
         ) {
-            StatItem("Max Linear Accel", if (stats?.maxTotalLinearAcceleration != null) "%.1f m/s^2".format(stats.maxTotalLinearAcceleration) else "--")
-            StatItem("Current Linear Accel", if (stats?.totalLinearAcceleration != null) "%.1f m/s^2".format(stats.totalLinearAcceleration) else "--")
-            StatItem("Timestamp", (stats?.timestamp ?: "--").toString())
+            val maxLinearAccel = viewModel.maxLinearAccel.collectAsState().value
+            val currentLinearAccel = viewModel.currentLinearAccel.collectAsState().value
+
+            StatItem("Max Linear Accel", if (maxLinearAccel != null) "%.1f m/s^2".format(maxLinearAccel.z) else "--")
+            StatItem("Current Linear Accel", if (currentLinearAccel != null) "%.1f m/s^2".format(currentLinearAccel.z) else "--")
+            StatItem("Timestamp", (currentLinearAccel?.timestamp ?: "--").toString())
 
         }
         Row(

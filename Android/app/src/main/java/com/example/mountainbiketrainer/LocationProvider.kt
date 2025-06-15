@@ -1,6 +1,7 @@
 package com.example.mountainbiketrainer
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Looper
@@ -11,29 +12,19 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.callbackFlow
 
-data class SpeedData(val speedMph: Float)
 
-class LocationProvider(private val context: Context) {
+class LocationProvider(context: Context) {
+    private val fusedLocationClient: FusedLocationProviderClient =
+        LocationServices.getFusedLocationProviderClient(context)
+    private val context = context
 
-    private val fusedLocationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context)
-    private var locationCallbackInstance: LocationCallback? = null
+    @SuppressLint("MissingPermission") // Ensure permissions are handled before calling
+    fun locationUpdatesFlow(): Flow<TimestampedSensorEvent> = callbackFlow {
 
-    private val _speedDataFlow = MutableStateFlow<SpeedData?>(null)
-    val locationUpdates: Flow<SpeedData?> = _speedDataFlow.asStateFlow()
-
-    private val locationRequest = LocationRequest.Builder(
-        Priority.PRIORITY_HIGH_ACCURACY,
-        MIN_TIME_BW_UPDATES_MS
-    )
-        .setMinUpdateIntervalMillis(MIN_UPDATE_INTERVAL_MS)
-        .setMinUpdateDistanceMeters(MIN_DISTANCE_CHANGE_FOR_UPDATES_METERS)
-        .build()
-
-    fun startLocationUpdates() {
         if (ActivityCompat.checkSelfPermission(
                 context, Manifest.permission.ACCESS_FINE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
@@ -41,47 +32,46 @@ class LocationProvider(private val context: Context) {
             ) != PackageManager.PERMISSION_GRANTED
         ) {
             System.err.println("FusedLocationProvider: Attempted to start updates without permission.")
-            _speedDataFlow.value = null
-            return
+            return@callbackFlow
         }
 
-        val callback = object : LocationCallback() {
+        val locationRequest = LocationRequest.Builder(
+            Priority.PRIORITY_HIGH_ACCURACY,
+            MIN_TIME_BW_UPDATES_MS
+        )
+            .setMinUpdateIntervalMillis(MIN_UPDATE_INTERVAL_MS)
+            .setMinUpdateDistanceMeters(MIN_DISTANCE_CHANGE_FOR_UPDATES_METERS)
+            .build()
+
+        val locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 locationResult.lastLocation?.let { location ->
-                    if (location.hasSpeed()) {
-                        val speedMph = location.speed * 2.23694f
-                        println("FusedLocationProvider: Speed available - $speedMph MPH")
-                        _speedDataFlow.value = SpeedData(speedMph)
-                    } else {
-                         _speedDataFlow.value = null
-                        println("FusedLocationProvider: No speed data.")
-                    }
+                    trySend(
+                        GPSSpeedEvent(
+                            timestamp = location.time, // Milliseconds
+                            speedMps = location.speed,
+                            accuracyMps = if (location.hasSpeedAccuracy()) location.speedAccuracyMetersPerSecond else null
+                        )
+                    ).isSuccess
+                    trySend(
+                        GPSLocationEvent(
+                            timestamp = location.time,
+                            latitude = location.latitude,
+                            longitude = location.longitude,
+                            altitude = if (location.hasAltitude()) location.altitude else null,
+                            accuracyHorizontal = if (location.hasAccuracy()) location.accuracy else null
+                        )
+                    ).isSuccess
                 }
             }
         }
-        locationCallbackInstance = callback
 
-        println("FusedLocationProvider: Requesting location updates...")
-        fusedLocationClient.requestLocationUpdates(locationRequest, callback, Looper.getMainLooper())
-            .addOnFailureListener { e ->
-                println("FusedLocationProvider: FAILED to request location updates: ${e.message}")
-                _speedDataFlow.value = null // Emit null or error state
-            }
-            .addOnSuccessListener {
-                println("FusedLocationProvider: Successfully started location updates.")
-            }
-        println("FusedLocationProvider: Started location updates flow setup.")
-    }
+        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
 
-    fun stopLocationUpdates() {
-        locationCallbackInstance?.let {
-            fusedLocationClient.removeLocationUpdates(it)
-            locationCallbackInstance = null
-            println("FusedLocationProvider: Stopped location updates.")
+        awaitClose {
+            fusedLocationClient.removeLocationUpdates(locationCallback)
         }
-        _speedDataFlow.value = null // Clear last known speed
     }
-
     companion object {
         private const val MIN_TIME_BW_UPDATES_MS: Long = 1000 // 1 second (desired interval)
         private const val MIN_UPDATE_INTERVAL_MS: Long = 500 // Smallest possible interval

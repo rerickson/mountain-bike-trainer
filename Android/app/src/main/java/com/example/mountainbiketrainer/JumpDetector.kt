@@ -12,11 +12,9 @@ class JumpDetector {
     private val MAX_EXPECTED_AIR_TIME_NS = 10000 * 1_000_000L
     private enum class JumpState { ON_GROUND, AIRBORNE }
 
-    fun processSensorEvent(data: ProcessedSensorData): Float? {
-        if(data.accelerometerData == null) return null
-
-        val zForce = data.accelerometerData.z
-        val currentTimestamp = data.accelerometerData.timestamp
+    fun processSensorEvent(data: AccelerometerEvent): Float? {
+        val zForce = data.z
+        val currentTimestamp = data.timestamp
         var detectedAirTimeSeconds: Float? = null
 
         when (currentJumpState) {
