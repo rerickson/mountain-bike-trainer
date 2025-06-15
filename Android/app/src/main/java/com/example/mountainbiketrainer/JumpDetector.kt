@@ -4,7 +4,6 @@ class JumpDetector {
     private var currentJumpState: JumpState = JumpState.ON_GROUND
     private var takeoffTimestamp: Long = 0L
 
-    // TODO tune these
     private val AIRBORNE_G_THRESHOLD = 2.0f
     private val LANDING_G_SPIKE_THRESHOLD = 15.0f
 

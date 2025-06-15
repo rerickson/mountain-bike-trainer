@@ -6,6 +6,8 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.SerializationFeature
+import com.fasterxml.jackson.module.kotlin.KotlinModule
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -128,18 +130,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun writeDataToUri(uri: Uri, data: List<TimestampedSensorEvent>) { // Changed type here
+    fun writeDataToUri(uri: Uri, data: List<TimestampedSensorEvent>) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 getApplication<Application>().contentResolver.openOutputStream(uri)?.use { outputStream ->
-                    val mapper = ObjectMapper()
-                    // Enable default typing for polymorphic types if not already on
-                     mapper.activateDefaultTyping(mapper.polymorphicTypeValidator, ObjectMapper.DefaultTyping.OBJECT_AND_NON_CONCRETE)
-                    // Or use @JsonTypeInfo on the interface/base class (see Jackson docs)
-                    val jsonString: String = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(data)
+                    val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
+
+                    mapper.enable(SerializationFeature.INDENT_OUTPUT)
+                    // Build the list of objects as you were
+                    val jsonString: String = mapper.writeValueAsString(data)
                     outputStream.write(jsonString.toByteArray())
                     Log.i("MainViewModel", "All sensor event data saved to URI: $uri")
-                    allRecordedEvents.clear()
+                    // allRecordedEvents.clear() // Clear only if this is the definitive end of data
                 } ?: run {
                     Log.e("MainViewModel", "Failed to open OutputStream for URI: $uri")
                 }

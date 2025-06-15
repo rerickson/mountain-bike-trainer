@@ -17,11 +17,10 @@ def process_raw_data(file_path):
         raw_data = json.load(f)
 
     for entry in raw_data:
-        event_type_full, event_data_point = entry
-        event_type = event_type_full.split('.')[-1]  # Extract the event name
+        event_type = entry.get('eventType', 'UnknownEvent')  # Extract event type
         if event_type not in event_data:
             event_data[event_type] = []
-        event_data[event_type].append(event_data_point)
+        event_data[event_type].append(entry)
 
     return event_data
 
@@ -43,6 +42,7 @@ def display_event_data(event_data, output_dir="plots"):
         for dp in data_points:
             all_keys.update(dp.keys())
         all_keys.discard('timestamp')  # Don't plot timestamp against itself
+        all_keys.discard('eventType') # Don't plot eventType
 
         # Create the plot
         plt.figure(figsize=(12, 8))  # Adjust figure size for better readability

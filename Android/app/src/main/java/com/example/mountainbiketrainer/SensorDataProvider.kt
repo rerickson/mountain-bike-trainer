@@ -9,16 +9,6 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 
-data class ProcessedSensorData(
-    val totalLinearAcceleration: Float = 0f,
-    val gForce: Float = 0f,
-    val timestamp: Long = 0L,
-    val maxGForce: Float = 0f,
-    val maxTotalLinearAcceleration: Float = 0f,
-    val accelerometerData: AccelerometerEvent? = null,
-    val gyroscopeData: GyroscopeEvent? = null
-)
-
 class SensorDataProvider(context: Context) {
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val accelerometer: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) // Using raw accelerometer
@@ -35,52 +25,68 @@ class SensorDataProvider(context: Context) {
         val listener = object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
                 event?.let {
-                    val sensorEvent: TimestampedSensorEvent? = when (it.sensor.type) {
+                    val sensorEventData: TimestampedSensorEvent? = when (it.sensor.type) {
                         Sensor.TYPE_ACCELEROMETER -> AccelerometerEvent(
-                            timestamp = it.timestamp, // Nanoseconds
+                            timestamp = it.timestamp,
                             x = it.values[0],
                             y = it.values[1],
                             z = it.values[2]
                         )
                         Sensor.TYPE_GYROSCOPE -> GyroscopeEvent(
-                            timestamp = it.timestamp, // Nanoseconds
+                            timestamp = it.timestamp,
                             x = it.values[0],
                             y = it.values[1],
                             z = it.values[2]
                         )
                         Sensor.TYPE_LINEAR_ACCELERATION -> LinearAccelEvent(
-                            timestamp = it.timestamp, // Nanoseconds
+                            timestamp = it.timestamp,
                             x = it.values[0],
                             y = it.values[1],
                             z = it.values[2]
                         )
-                        Sensor.TYPE_MAGNETIC_FIELD -> BarometerEvent(
-                            timestamp = it.timestamp, // Nanoseconds
+                        Sensor.TYPE_MAGNETIC_FIELD -> MagneticFieldEvent(
+                            timestamp = it.timestamp,
                             x = it.values[0],
                             y = it.values[1],
                             z = it.values[2]
                         )
-                        Sensor.TYPE_PRESSURE -> PressureEvent(
-                            timestamp = it.timestamp, // Nanoseconds
-                            pressure = it.values[0]
-                        )
+                        Sensor.TYPE_PRESSURE -> {
+                            val currentPressure = it.values[0]
+                            // Basic altitude calculation
+                            val altitude = SensorManager.getAltitude(SensorManager.PRESSURE_STANDARD_ATMOSPHERE, currentPressure)
+                            PressureEvent(
+                                timestamp = it.timestamp,
+                                pressure = currentPressure,
+                                altitude = altitude
+                            )
+                        }
                         Sensor.TYPE_GRAVITY -> GravityEvent(
-                            timestamp = it.timestamp, // Nanoseconds
+                            timestamp = it.timestamp,
                             x = it.values[0],
                             y = it.values[1],
                             z = it.values[2]
                         )
-                        Sensor.TYPE_ROTATION_VECTOR -> RotationVectorEvent(
-                            timestamp = it.timestamp, // Nanoseconds
-                            x = it.values[0],
-                            y = it.values[1],
-                            z = it.values[2],
-                            w = it.values[3],
-                            headingAccuracy = it.accuracy
-                        )
+                        Sensor.TYPE_ROTATION_VECTOR -> {
+                            // Rotation vector can have 3, 4, or 5 values.
+                            // values[0]: x*sin(θ/2)
+                            // values[1]: y*sin(θ/2)
+                            // values[2]: z*sin(θ/2)
+                            // values[3]: cos(θ/2) (scalar component, optional, only if array length >= 4)
+                            // values[4]: estimated heading accuracy (optional, only if array length >= 5)
+                            val wValue = if (it.values.size >= 4) it.values[3] else null
+                            val accuracyValue = if (it.values.size >= 5) it.values[4].toInt() else it.accuracy // Fallback to event.accuracy if specific value not present
+                            RotationVectorEvent(
+                                timestamp = it.timestamp,
+                                x = it.values[0],
+                                y = it.values[1],
+                                z = it.values[2],
+                                w = wValue,
+                                headingAccuracy = accuracyValue
+                            )
+                        }
                         else -> null
                     }
-                    sensorEvent?.let { trySend(it).isSuccess }
+                    sensorEventData?.let { trySend(it).isSuccess }
                 }
             }
 
