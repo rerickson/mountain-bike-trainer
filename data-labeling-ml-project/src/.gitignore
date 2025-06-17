@@ -1,0 +1,49 @@
+# Bytecode files
+*.pyc
+*.pyo
+__pycache__/
+
+# Distribution / packaging
+.eggs/
+dist/
+build/
+wheels/
+*.egg-info/
+*.whl
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+.tox/
+htmlcov/
+.coverage
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+
+# Virtual environment
+.venv/
+venv/
+env/
+ENV/
+
+plots/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# MyPy cache
+.mypy_cache/
+
+# Other
+*.sqlite
+*.sqlite3
+local_settings.py
+secrets.json

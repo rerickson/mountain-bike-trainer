@@ -1,6 +1,7 @@
 import json
 import matplotlib.pyplot as plt
 import os
+from rolling_average_filter import apply_rolling_average  # Import the filter
 
 def process_raw_data(file_path):
     """
@@ -36,10 +37,13 @@ def display_event_data(event_data, output_dir="plots"):
         os.makedirs(output_dir)
 
     for event_type, data_points in event_data.items():
+        # Apply rolling average filter
+        filtered_data_points = apply_rolling_average(data_points, window=10)  # Adjust window size as needed
+
         # Extract timestamps and all other fields
-        timestamps = [dp.get('timestamp', i) for i, dp in enumerate(data_points)]  # Use index if timestamp is missing
+        timestamps = [dp.get('timestamp', i) for i, dp in enumerate(filtered_data_points)]  # Use index if timestamp is missing
         all_keys = set()
-        for dp in data_points:
+        for dp in filtered_data_points:
             all_keys.update(dp.keys())
         all_keys.discard('timestamp')  # Don't plot timestamp against itself
         all_keys.discard('eventType') # Don't plot eventType
@@ -49,7 +53,7 @@ def display_event_data(event_data, output_dir="plots"):
 
         # Plot each field against the timestamp
         for key in all_keys:
-            values = [dp.get(key, None) for dp in data_points]
+            values = [dp.get(key, None) for dp in filtered_data_points]
             valid_data = [(t, v) for t, v in zip(timestamps, values) if v is not None and isinstance(v, (int, float))]
 
             if not valid_data:
