@@ -84,7 +84,7 @@ data class GPSSpeedEvent(
     val speedMps: Float,
     @get:JsonProperty("speed_accuracy_mps")
     val accuracyMps: Float?,
-    val eventType: String = "GPSSpeedEvent"
+    val eventType: String = "GPSSpeedEvent" 
 ) : TimestampedSensorEvent
 
 data class GPSLocationEvent(

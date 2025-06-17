@@ -1,6 +1,7 @@
 package com.example.mountainbiketrainer
 
 import android.app.Application
+import android.hardware.SensorManager
 import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
@@ -20,10 +21,10 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.sqrt
 
 data class SaveFileRequest(val suggestedName: String, val dataToSave: List<TimestampedSensorEvent>)
 
-@Suppress("OPT_IN_USAGE")
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val sensorDataProvider = SensorDataProvider(application.applicationContext)
     private val locationProvider = LocationProvider(application.applicationContext)
@@ -91,8 +92,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 }
                             }
                             if(event is LinearAccelEvent) {
-                                if (_maxGForce.value == null || event.z > _maxGForce.value!!) {
-                                    _maxGForce.value = event.z
+                                val magnitudeMs2 = sqrt(event.x * event.x + event.y * event.y + event.z * event.z)
+                                val gforce = magnitudeMs2/ SensorManager.GRAVITY_EARTH
+                                if (_maxGForce.value == null || gforce > _maxGForce.value!!) {
+                                    _maxGForce.value = gforce
                                 }
                                 _currentLinearAccel.value = event
                                 if (_maxLinearAccel.value == null || event.z > _maxLinearAccel.value!!.z) {
