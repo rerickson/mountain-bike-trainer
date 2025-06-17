@@ -73,8 +73,28 @@ def display_event_data(event_data, output_dir="plots"):
 
         print(f"Saved plot to {file_path}")
 
+def process_all_json_files(data_dir):
+    """
+    Processes all JSON files in the specified directory.
+
+    Args:
+    data_dir (str): Path to the directory containing JSON files.
+    """
+    all_event_data = {}
+    for filename in os.listdir(data_dir):
+        if filename.endswith('.json'):
+            file_path = os.path.join(data_dir, filename)
+            print(f"Processing {file_path}...")
+            event_data = process_raw_data(file_path)
+            # Merge event data
+            for event_type, data_points in event_data.items():
+                if event_type not in all_event_data:
+                    all_event_data[event_type] = []
+                all_event_data[event_type].extend(data_points)
+    return all_event_data
+
 if __name__ == "__main__":
-    file_path = '../data/session_raw_all_20250613_130555.json'  # Replace with your file path
-    processed_data = process_raw_data(file_path)
-    display_event_data(processed_data)
+    data_dir = os.path.join("..", "data")  # Path to the data directory
+    all_event_data = process_all_json_files(data_dir)
+    display_event_data(all_event_data)
     print("Plots generated successfully in the 'plots' directory.")
