@@ -69,6 +69,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleOverallDataCollection() {
         _collecting.value = !_collecting.value
         if (_collecting.value) {
+            allRecordedEvents.clear() // Clear the list before starting a new collection
+            Log.i("MainViewModel", "Cleared previous session data. Starting new session.")
+
             sensorCollectionJob = viewModelScope.launch {
                 val sensorFlow = sensorDataProvider.sensorEventsFlow()
                 val locationFlow = locationProvider.locationUpdatesFlow()

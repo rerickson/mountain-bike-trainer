@@ -1,104 +1,75 @@
 import json
-import matplotlib.pyplot as plt
 import os
-from rolling_average_filter import apply_rolling_average  # Import the filter
+import math
+from rolling_average_filter import apply_rolling_average
 
-def process_raw_data(file_path):
+def clean_and_process_data(file_path, output_dir, window_size=10):
     """
-    Processes the raw JSON data to extract event types and their corresponding data.
+    Loads raw JSON data, filters for LinearAccelerationEvent, applies a rolling average filter,
+    and saves the processed data to a new JSON file.
 
     Args:
-    file_path (str): Path to the raw JSON data file.
-
-    Returns:
-    dict: A dictionary where keys are event types and values are lists of event data.
+        file_path (str): Path to the raw JSON data file.
+        output_dir (str): Path to the directory where the processed data will be saved.
+        window_size (int): The size of the rolling window.
     """
-    event_data = {}
-    with open(file_path, 'r') as f:
-        raw_data = json.load(f)
+    try:
+        with open(file_path, 'r') as f:
+            raw_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Error loading {file_path}: {e}")
+        return
 
-    for entry in raw_data:
-        event_type = entry.get('eventType', 'UnknownEvent')  # Extract event type
-        if event_type not in event_data:
-            event_data[event_type] = []
-        event_data[event_type].append(entry)
+    # Filter for LinearAccelerationEvent (case-insensitive, handles both eventType and event_type)
+    filtered_data = [
+        entry for entry in raw_data
+        if entry.get('eventType', '').lower() == 'linearaccelerationevent' or entry.get('event_type', '').lower() == 'linearaccelerationevent'
+    ]
 
-    return event_data
+    if not filtered_data:
+        print(f"No LinearAccelerationEvent entries found in {file_path}. Skipping.")
+        return
 
-def display_event_data(event_data, output_dir="plots"):
-    """
-    Displays all fields within each event type on a single plot, with timestamp on the x-axis.
+    # Apply rolling average filter
+    smoothed_data = apply_rolling_average(filtered_data, window=window_size)
 
-    Args:
-    event_data (dict): A dictionary where keys are event types and values are lists of event data.
-    output_dir (str): Directory to save the plots.
-    """
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    clean_data = remove_nan_fields(smoothed_data)
 
-    for event_type, data_points in event_data.items():
-        # Apply rolling average filter
-        filtered_data_points = apply_rolling_average(data_points, window=10)  # Adjust window size as needed
+    # Save the processed data
+    base_name = os.path.basename(file_path).replace('.json', '')
+    output_file = os.path.join(output_dir, f"{base_name}_processed.json")
+    os.makedirs(output_dir, exist_ok=True)
+    try:
+        with open(output_file, 'w') as f:
+            json.dump(clean_data, f, indent=4)
+        print(f"Processed data saved to {output_file}")
+    except OSError as e:
+        print(f"Error saving processed data to {output_file}: {e}")
 
-        # Extract timestamps and all other fields
-        timestamps = [dp.get('timestamp', i) for i, dp in enumerate(filtered_data_points)]  # Use index if timestamp is missing
-        all_keys = set()
-        for dp in filtered_data_points:
-            all_keys.update(dp.keys())
-        all_keys.discard('timestamp')  # Don't plot timestamp against itself
-        all_keys.discard('eventType') # Don't plot eventType
+def remove_nan_fields(data):
+    cleaned = []
+    for entry in data:
+        cleaned_entry = {k: v for k, v in entry.items() if not (isinstance(v, float) and math.isnan(v))}
+        cleaned.append(cleaned_entry)
+    return cleaned
 
-        # Create the plot
-        plt.figure(figsize=(12, 8))  # Adjust figure size for better readability
-
-        # Plot each field against the timestamp
-        for key in all_keys:
-            values = [dp.get(key, None) for dp in filtered_data_points]
-            valid_data = [(t, v) for t, v in zip(timestamps, values) if v is not None and isinstance(v, (int, float))]
-
-            if not valid_data:
-                print(f"Skipping {key} in {event_type}: No valid numeric data to plot.")
-                continue
-
-            ts, vals = zip(*valid_data)  # Unzip the valid data points
-            plt.plot(ts, vals, label=key)
-
-        plt.xlabel("Timestamp" if 'timestamp' in all_keys else "Sample Index")
-        plt.ylabel("Value")
-        plt.title(f"{event_type} - All Fields")
-        plt.grid(True)
-        plt.legend()  # Show legend to identify each field
-
-        # Save the plot
-        file_name = f"{event_type}_AllFields.png"
-        file_path = os.path.join(output_dir, file_name)
-        plt.savefig(file_path)
-        plt.close()
-
-        print(f"Saved plot to {file_path}")
-
-def process_all_json_files(data_dir):
+def process_all_json_files(data_dir, output_dir, window_size=10):
     """
     Processes all JSON files in the specified directory.
 
     Args:
-    data_dir (str): Path to the directory containing JSON files.
+        data_dir (str): Path to the directory containing JSON files.
+        output_dir (str): Path to the directory where the processed data will be saved.
+        window_size (int): The size of the rolling window.
     """
-    all_event_data = {}
     for filename in os.listdir(data_dir):
         if filename.endswith('.json'):
             file_path = os.path.join(data_dir, filename)
             print(f"Processing {file_path}...")
-            event_data = process_raw_data(file_path)
-            # Merge event data
-            for event_type, data_points in event_data.items():
-                if event_type not in all_event_data:
-                    all_event_data[event_type] = []
-                all_event_data[event_type].extend(data_points)
-    return all_event_data
+            clean_and_process_data(file_path, output_dir, window_size=window_size)
 
 if __name__ == "__main__":
-    data_dir = os.path.join("..", "data")  # Path to the data directory
-    all_event_data = process_all_json_files(data_dir)
-    display_event_data(all_event_data)
-    print("Plots generated successfully in the 'plots' directory.")
+    raw_data_dir = os.path.join("..", "data", "raw")
+    processed_data_dir = os.path.join("..", "data", "processed")
+    process_all_json_files(raw_data_dir, processed_data_dir, window_size=10)
+    print("Data processing complete.")
