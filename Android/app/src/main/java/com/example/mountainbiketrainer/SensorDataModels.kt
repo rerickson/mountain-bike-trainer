@@ -80,6 +80,7 @@ data class RotationVectorEvent(
 
 data class GPSSpeedEvent(
     override val timestamp: Long,
+    val gpsUtcTime: Long,         // location.time
     @get:JsonProperty("speed_mps")
     val speedMps: Float,
     @get:JsonProperty("speed_accuracy_mps")
@@ -89,6 +90,7 @@ data class GPSSpeedEvent(
 
 data class GPSLocationEvent(
     override val timestamp: Long,
+    val gpsUtcTime: Long,         // location.time
     val latitude: Double,
     val longitude: Double,
     val altitude: Double?, // This is GPS altitude, different from barometric

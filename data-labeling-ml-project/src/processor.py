@@ -1,17 +1,11 @@
 import json
 import os
-import math
 from rolling_average_filter import apply_rolling_average
 
 def clean_and_process_data(file_path, output_dir, window_size=10):
     """
-    Loads raw JSON data, filters for LinearAccelerationEvent, applies a rolling average filter,
-    and saves the processed data to a new JSON file.
-
-    Args:
-        file_path (str): Path to the raw JSON data file.
-        output_dir (str): Path to the directory where the processed data will be saved.
-        window_size (int): The size of the rolling window.
+    Loads raw JSON data, filters for LinearAccelerationEvent and GPSLocationEvent,
+    applies a rolling average filter to LinearAccelerationEvent, and saves both event types.
     """
     try:
         with open(file_path, 'r') as f:
@@ -20,20 +14,22 @@ def clean_and_process_data(file_path, output_dir, window_size=10):
         print(f"Error loading {file_path}: {e}")
         return
 
-    # Filter for LinearAccelerationEvent (case-insensitive, handles both eventType and event_type)
-    filtered_data = [
+    # Separate events
+    linear_accel = [
         entry for entry in raw_data
         if entry.get('eventType', '').lower() == 'linearaccelerationevent' or entry.get('event_type', '').lower() == 'linearaccelerationevent'
     ]
+    gps_location = [
+        entry for entry in raw_data
+        if entry.get('eventType', '').lower() == 'gpslocationevent' or entry.get('event_type', '').lower() == 'gpslocationevent'
+    ]
 
-    if not filtered_data:
-        print(f"No LinearAccelerationEvent entries found in {file_path}. Skipping.")
-        return
+    # Apply rolling average only to linearaccelerationevent
+    smoothed_linear_accel = apply_rolling_average(linear_accel, window=window_size) if linear_accel else []
 
-    # Apply rolling average filter
-    smoothed_data = apply_rolling_average(filtered_data, window=window_size)
-
-    clean_data = remove_nan_fields(smoothed_data)
+    # Combine for output
+    processed_data = smoothed_linear_accel + gps_location
+    processed_data.sort(key=lambda x: x.get('timestamp', 0))  # Sort by timestamp
 
     # Save the processed data
     base_name = os.path.basename(file_path).replace('.json', '')
@@ -41,17 +37,10 @@ def clean_and_process_data(file_path, output_dir, window_size=10):
     os.makedirs(output_dir, exist_ok=True)
     try:
         with open(output_file, 'w') as f:
-            json.dump(clean_data, f, indent=4)
+            json.dump(processed_data, f, indent=4)
         print(f"Processed data saved to {output_file}")
     except OSError as e:
         print(f"Error saving processed data to {output_file}: {e}")
-
-def remove_nan_fields(data):
-    cleaned = []
-    for entry in data:
-        cleaned_entry = {k: v for k, v in entry.items() if not (isinstance(v, float) and math.isnan(v))}
-        cleaned.append(cleaned_entry)
-    return cleaned
 
 def process_all_json_files(data_dir, output_dir, window_size=10):
     """

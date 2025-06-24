@@ -48,14 +48,17 @@ class LocationProvider(context: Context) {
                 locationResult.lastLocation?.let { location ->
                     trySend(
                         GPSSpeedEvent(
-                            timestamp = location.time, // Milliseconds
+                            timestamp = location.elapsedRealtimeNanos,
+                            gpsUtcTime = location.time,
                             speedMps = location.speed,
                             accuracyMps = if (location.hasSpeedAccuracy()) location.speedAccuracyMetersPerSecond else null
                         )
                     ).isSuccess
+
                     trySend(
                         GPSLocationEvent(
-                            timestamp = location.time,
+                            gpsUtcTime = location.time,
+                            timestamp = location.elapsedRealtimeNanos,
                             latitude = location.latitude,
                             longitude = location.longitude,
                             altitude = if (location.hasAltitude()) location.altitude else null,
