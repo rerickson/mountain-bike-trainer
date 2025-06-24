@@ -17,18 +17,28 @@ def clean_and_process_data(file_path, output_dir, window_size=10):
     # Separate events
     linear_accel = [
         entry for entry in raw_data
-        if entry.get('eventType', '').lower() == 'linearaccelerationevent' or entry.get('event_type', '').lower() == 'linearaccelerationevent'
+        if entry.get('eventType', '').lower() == 'linearaccelerationevent'
+    ]
+    gyro = [
+        entry for entry in raw_data
+        if entry.get('eventType', '').lower() == 'gyroscopeevent'
+    ]
+    barometer = [
+        entry for entry in raw_data
+        if entry.get('eventType', '').lower() == 'barometerevent'
     ]
     gps_location = [
         entry for entry in raw_data
-        if entry.get('eventType', '').lower() == 'gpslocationevent' or entry.get('event_type', '').lower() == 'gpslocationevent'
+        if entry.get('eventType', '').lower() == 'gpslocationevent'
     ]
 
-    # Apply rolling average only to linearaccelerationevent
+    # Apply rolling average to linearaccelerationevent and gyro as they are high frequency events
     smoothed_linear_accel = apply_rolling_average(linear_accel, window=window_size) if linear_accel else []
+    smoothed_gyro = apply_rolling_average(gyro, window=window_size) if gyro else []
+    # smoothed_barometer = apply_rolling_average(barometer, window=window_size) if barometer else []
 
     # Combine for output
-    processed_data = smoothed_linear_accel + gps_location
+    processed_data = smoothed_linear_accel + gps_location + barometer + smoothed_gyro
     processed_data.sort(key=lambda x: x.get('timestamp', 0))  # Sort by timestamp
 
     # Save the processed data
