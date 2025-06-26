@@ -30,7 +30,7 @@ def plot_events_by_type(data):
         event_type = entry.get('eventType', entry.get('event_type', 'UnknownEvent'))
         events.setdefault(event_type, []).append(entry)
 
-    ignore_fields = {'timestamp', 'eventType', 'event_type', 'gpsUtcTime', 'latitude', 'longitude', 'horizontal_accuracy_m'}
+    ignore_fields = {'timestamp', 'eventType', 'event_type', 'gpsUtcTime', 'latitude', 'longitude', 'horizontal_accuracy_m','pressure'}
 
     for event_type, entries in events.items():
         if not entries:
