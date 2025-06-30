@@ -1,24 +1,13 @@
 import os
 import json
 import matplotlib.pyplot as plt
+from charter import CharterPlotter
+
+plotter = CharterPlotter()
 
 def load_processed_data(file_path):
     with open(file_path, 'r') as f:
         return json.load(f)
-
-def plot_events(data, file_name):
-    timestamps = [entry['timestamp'] for entry in data]
-    value_keys = [k for k in data[0].keys() if k not in ('timestamp', 'eventType', 'event_type')]
-    plt.figure(figsize=(12, 6))
-    for key in value_keys:
-        values = [entry.get(key, 0) for entry in data]
-        plt.plot(timestamps, values, label=key)
-    plt.xlabel("Timestamp")
-    plt.ylabel("Sensor Value")
-    plt.title(f"{file_name} - All Events")
-    plt.legend()
-    plt.grid(True)
-    return plt.gca()
 
 def onclick(event, jump_ranges, ax):
     if event.inaxes == ax:
@@ -48,9 +37,10 @@ def label_jumps_in_file(file_path, labels_dir):
     data = load_processed_data(file_path)
     file_name = os.path.basename(file_path)
     print(f"\nLabeling jumps for: {file_name}")
-    ax = plot_events(data, file_name)
-    jump_ranges = []
 
+    ax = plotter.plot_events_with_charter(data, file_name)
+
+    jump_ranges = []
     cid = plt.gcf().canvas.mpl_connect('button_press_event', lambda event: onclick(event, jump_ranges, ax))
     plt.show()
     plt.gcf().canvas.mpl_disconnect(cid)
