@@ -9,16 +9,18 @@ def load_processed_data(file_path):
     with open(file_path, 'r') as f:
         return json.load(f)
 
-def onclick(event, jump_ranges, ax):
-    if event.inaxes == ax:
+def onclick(event, jump_ranges, axes):
+    # Accept clicks on any axis in the axes list
+    if event.inaxes in axes:
         timestamp = event.xdata
         print(f"Clicked timestamp: {timestamp}")
+        color = 'r' if not jump_ranges or len(jump_ranges[-1]) == 2 else 'g'
         if not jump_ranges or len(jump_ranges[-1]) == 2:
             jump_ranges.append([timestamp])
-            ax.axvline(x=timestamp, color='r', linestyle='--')
+            event.inaxes.axvline(x=timestamp, color=color, linestyle='--')
         elif len(jump_ranges[-1]) == 1:
             jump_ranges[-1].append(timestamp)
-            ax.axvline(x=timestamp, color='g', linestyle='--')
+            event.inaxes.axvline(x=timestamp, color=color, linestyle='--')
         plt.draw()
 
 def save_labels(labels_dir, base_name, jump_ranges):
@@ -39,11 +41,13 @@ def label_jumps_in_file(file_path, labels_dir):
     print(f"\nLabeling jumps for: {file_name}")
 
     ax = plotter.plot_events_with_charter(data, file_name)
+    fig = ax.get_figure()
+    axes = fig.get_axes()  # Get all axes, including twinx
 
     jump_ranges = []
-    cid = plt.gcf().canvas.mpl_connect('button_press_event', lambda event: onclick(event, jump_ranges, ax))
-    plt.show()
-    plt.gcf().canvas.mpl_disconnect(cid)
+    cid = fig.canvas.mpl_connect('button_press_event', lambda event: onclick(event, jump_ranges, axes))
+    plt.show(block=True)  # Ensure the plot is blocking and interactive
+    fig.canvas.mpl_disconnect(cid)
 
     base_name = os.path.splitext(file_name)[0]
     save_labels(labels_dir, base_name, jump_ranges)

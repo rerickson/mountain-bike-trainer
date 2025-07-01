@@ -66,59 +66,73 @@ class CharterPlotter:
         filtered_data = self.apply_rolling_average(data)
         filtered_data = self.apply_median_filter(filtered_data)
 
-        events = {}
+        # Prepare lists for each group
+        motion = {'LinearAccelerationEvent': {'x': [], 'y': [], 'z': []},
+                  'GyroscopeEvent': {'x': [], 'y': [], 'z': []}}
+        pressure = []
+        altitude = []
+
+        # Build unified lists for plotting
         for entry in filtered_data:
-            event_type = entry.get('eventType', entry.get('event_type', 'UnknownEvent'))
-            events.setdefault(event_type, []).append(entry)
+            ts = entry.get('timestamp')
+            if ts is None:
+                continue
+            etype = entry.get('eventType')
+            if etype in motion:
+                for axis in ['x', 'y', 'z']:
+                    val = entry.get(axis)
+                    if val is not None:
+                        motion[etype][axis].append((ts, val))
+            elif etype == 'BarometerEvent':
+                p = entry.get('pressure')
+                a = entry.get('altitude')
+                if p is not None:
+                    pressure.append((ts, p))
+                if a is not None:
+                    altitude.append((ts, a))
 
         fig, host_ax = plt.subplots(figsize=(14, 7))
+        # Use a high-contrast color palette for better visibility
+        high_contrast_colors = [
+            '#1f77b4',  # blue
+            '#ff7f0e',  # orange
+            '#2ca02c',  # green
+            '#d62728',  # red
+            "#f9fd0e",  # yellow
+            "#000000",  # black
+            '#e377c2',  # pink
+            "#1fd65f",  # light green
+            '#bcbd22',  # yellow-green
+            '#17becf',  # cyan
+        ]
+        color_cycle = high_contrast_colors
         axes = [host_ax]
-        color_cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
-        used_keys = set()
-        # Group gyro and linear acceleration keys
-        gyro_keys = {'gyroscope_x', 'gyroscope_y', 'gyroscope_z'}
-        accel_keys = {'linear_acceleration_x', 'linear_acceleration_y', 'linear_acceleration_z'}
-        combined_keys = gyro_keys | accel_keys
-        # Plot combined gyro/accel on host_ax
-        for event_type, entries in events.items():
-            if not entries:
-                continue
-            all_keys = set()
-            for entry in entries:
-                all_keys.update(k for k in entry.keys() if k not in self.ignore_fields)
-            value_keys = list(all_keys)
-            # Plot combined gyro/accel
-            for key in value_keys:
-                if key in combined_keys and key not in used_keys:
-                    values = [e.get(key, None) for e in entries]
-                    if any(v is not None for v in values):
-                        color = color_cycle[len(used_keys) % len(color_cycle)]
-                        host_ax.plot([e['timestamp'] for e in entries], values, label=key, color=color)
-                        used_keys.add(key)
-        # Plot all other keys on separate axes
-        for event_type, entries in events.items():
-            if not entries:
-                continue
-            all_keys = set()
-            for entry in entries:
-                all_keys.update(k for k in entry.keys() if k not in self.ignore_fields)
-            value_keys = list(all_keys)
-            for key in value_keys:
-                if key in combined_keys:
-                    continue  # Already plotted
-                values = [e.get(key, None) for e in entries]
-                if not any(v is not None for v in values):
-                    continue
-                ax = host_ax.twinx()
-                if len(axes) > 1:
-                    ax.spines["right"].set_position(("axes", 1 + 0.1 * (len(axes) - 1)))
-                axes.append(ax)
-                color = color_cycle[(len(axes)-1) % len(color_cycle)]
-                ax.plot([e['timestamp'] for e in entries], values, label=f"{event_type}: {key}", color=color)
-                ax.set_ylabel(f"{event_type}: {key}", color=color)
-                ax.tick_params(axis='y', labelcolor=color)
-        host_ax.set_xlabel("Timestamp")
-        host_ax.set_ylabel("Gyro/Accel Values")
+        color_idx = 0
+        # Plot motion (x, y, z) for both sensors on host_ax
+        for etype in ['LinearAccelerationEvent', 'GyroscopeEvent']:
+            for axis in ['x', 'y', 'z']:
+                if motion[etype][axis]:
+                    ts, vals = zip(*motion[etype][axis])
+                    host_ax.plot(ts, vals, label=f'{etype} {axis}', color=color_cycle[color_idx % len(color_cycle)])
+                    color_idx += 1
+        host_ax.set_ylabel('Motion (x/y/z)')
+        host_ax.set_xlabel('Timestamp')
+        # Plot pressure on 2nd y-axis if present
+        if pressure:
+            ts, vals = zip(*pressure)
+            ax2 = host_ax.twinx()
+            ax2.plot(ts, vals, label='Pressure', color=color_cycle[color_idx % len(color_cycle)])
+            ax2.set_ylabel('Pressure')
+            axes.append(ax2)
+            color_idx += 1
+        # Plot altitude on 3rd y-axis if present
+        if altitude:
+            ts, vals = zip(*altitude)
+            ax3 = host_ax.twinx()
+            ax3.plot(ts, vals, label='Altitude', color=color_cycle[color_idx % len(color_cycle)])
+            ax3.set_ylabel('Altitude')
+            ax3.spines['right'].set_position(('axes', 1.1))
+            axes.append(ax3)
         title = f"Events" if file_name is None else f"Events: {file_name}"
         host_ax.set_title(title)
         # Combine all legends
