@@ -6,6 +6,7 @@ def clean_and_process_data(file_path, output_dir, window_size=10):
     """
     Loads raw JSON data, filters for LinearAccelerationEvent and GPSLocationEvent,
     applies a rolling average filter to LinearAccelerationEvent, and saves both event types.
+    Adds a 'relative_time_s' field to each event, representing seconds from the first timestamp.
     """
     try:
         with open(file_path, 'r') as f:
@@ -13,6 +14,10 @@ def clean_and_process_data(file_path, output_dir, window_size=10):
     except (FileNotFoundError, json.JSONDecodeError) as e:
         print(f"Error loading {file_path}: {e}")
         return
+
+    # Find the minimum timestamp for relative time calculation
+    timestamps = [entry.get('timestamp') for entry in raw_data if 'timestamp' in entry]
+    min_timestamp = min(timestamps) if timestamps else 0
 
     # Separate events
     linear_accel = [
@@ -40,6 +45,14 @@ def clean_and_process_data(file_path, output_dir, window_size=10):
     # Combine for output
     processed_data = smoothed_linear_accel + gps_location + barometer + smoothed_gyro
     processed_data.sort(key=lambda x: x.get('timestamp', 0))  # Sort by timestamp
+
+    # Add relative_time_s to each event
+    for entry in processed_data:
+        ts = entry.get('timestamp')
+        if ts is not None:
+            entry['relative_time_s'] = (ts - min_timestamp) / 1000000000
+        else:
+            entry['relative_time_s'] = None
 
     # Save the processed data
     base_name = os.path.basename(file_path).replace('.json', '')

@@ -10,7 +10,7 @@ import math
 class CharterPlotter:
     def __init__(self, ignore_fields=None, median_window=11, average_window=25):
         if ignore_fields is None:
-            ignore_fields = {'timestamp', 'eventType', 'event_type', 'gpsUtcTime', 'latitude', 'longitude', 'horizontal_accuracy_m','pressure'}
+            ignore_fields = {'relative_time_s', 'timestamp', 'eventType', 'event_type', 'gpsUtcTime', 'latitude', 'longitude', 'horizontal_accuracy_m','pressure'}
         self.ignore_fields = ignore_fields
         self.median_window = median_window
         self.average_window = average_window
@@ -53,7 +53,7 @@ class CharterPlotter:
             for key in value_keys:
                 values = [e.get(key, None) for e in entries]
                 if any(v is not None for v in values):
-                    plt.plot([e['timestamp'] for e in entries], values, label=key)
+                    plt.plot([e['relative_time_s'] for e in entries], values, label=key)
             plt.xlabel("Timestamp")
             plt.ylabel("Value")
             plt.title(f"{event_type} Events")
@@ -74,7 +74,7 @@ class CharterPlotter:
 
         # Build unified lists for plotting
         for entry in filtered_data:
-            ts = entry.get('timestamp')
+            ts = entry.get('relative_time_s')
             if ts is None:
                 continue
             etype = entry.get('eventType')
@@ -99,9 +99,9 @@ class CharterPlotter:
             '#2ca02c',  # green
             '#d62728',  # red
             "#f9fd0e",  # yellow
-            "#000000",  # black
-            '#e377c2',  # pink
             "#1fd65f",  # light green
+            '#e377c2',  # pink
+            "#000000",  # black
             '#bcbd22',  # yellow-green
             '#17becf',  # cyan
         ]
@@ -116,7 +116,7 @@ class CharterPlotter:
                     host_ax.plot(ts, vals, label=f'{etype} {axis}', color=color_cycle[color_idx % len(color_cycle)])
                     color_idx += 1
         host_ax.set_ylabel('Motion (x/y/z)')
-        host_ax.set_xlabel('Timestamp')
+        host_ax.set_xlabel('Time (seconds)')
         # Plot pressure on 2nd y-axis if present
         if pressure:
             ts, vals = zip(*pressure)
@@ -144,6 +144,37 @@ class CharterPlotter:
         host_ax.legend(lines, labels, loc='upper left', bbox_to_anchor=(1.05, 1))
         host_ax.grid(True)
         plt.tight_layout(rect=[0, 0, 0.85, 1])
+
+        leg = host_ax.legend(lines, labels, loc='upper left', bbox_to_anchor=(1.05, 1))
+
+        # Make legend items pickable
+        for legline in leg.get_lines():
+            legline.set_picker(True)
+            legline.set_pickradius(5)
+
+        # Map legend lines to plot lines
+        legend_line_to_plot_line = dict(zip(leg.get_lines(), lines))
+
+        def on_legend_hover(event):
+            # Only respond to mouse motion over the legend
+            if event.inaxes == leg.axes:
+                for legline, plotline in legend_line_to_plot_line.items():
+                    if legline.contains(event)[0]:
+                        plotline.set_linewidth(4)
+                        plotline.set_alpha(1.0)
+                    else:
+                        plotline.set_linewidth(1.5)
+                        plotline.set_alpha(0.3)
+                fig.canvas.draw_idle()
+            else:
+                # Reset all lines if not hovering over legend
+                for plotline in lines:
+                    plotline.set_linewidth(1.5)
+                    plotline.set_alpha(1.0)
+                fig.canvas.draw_idle()
+
+        fig.canvas.mpl_connect('motion_notify_event', on_legend_hover)
+
         return host_ax
 
     def select_file_from_processed(self):
