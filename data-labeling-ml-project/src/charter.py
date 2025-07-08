@@ -113,7 +113,8 @@ class CharterPlotter:
             for axis in ['x', 'y', 'z']:
                 if motion[etype][axis]:
                     ts, vals = zip(*motion[etype][axis])
-                    host_ax.plot(ts, vals, label=f'{etype} {axis}', color=color_cycle[color_idx % len(color_cycle)])
+                    line, = host_ax.plot(ts, vals, label=f'{etype} {axis}', color=color_cycle[color_idx % len(color_cycle)])
+                    line.set_picker(25)  # Make the plot line itself clickable
                     color_idx += 1
         host_ax.set_ylabel('Motion (x/y/z)')
         host_ax.set_xlabel('Time (seconds)')
@@ -121,7 +122,8 @@ class CharterPlotter:
         if pressure:
             ts, vals = zip(*pressure)
             ax2 = host_ax.twinx()
-            ax2.plot(ts, vals, label='Pressure', color=color_cycle[color_idx % len(color_cycle)])
+            line, = ax2.plot(ts, vals, label='Pressure', color=color_cycle[color_idx % len(color_cycle)])
+            line.set_picker(25)
             ax2.set_ylabel('Pressure')
             axes.append(ax2)
             color_idx += 1
@@ -129,7 +131,8 @@ class CharterPlotter:
         if altitude:
             ts, vals = zip(*altitude)
             ax3 = host_ax.twinx()
-            ax3.plot(ts, vals, label='Altitude', color=color_cycle[color_idx % len(color_cycle)])
+            line, = ax3.plot(ts, vals, label='Altitude', color=color_cycle[color_idx % len(color_cycle)])
+            line.set_picker(25)
             ax3.set_ylabel('Altitude')
             ax3.spines['right'].set_position(('axes', 1.1))
             axes.append(ax3)
@@ -141,39 +144,9 @@ class CharterPlotter:
             line, label = ax.get_legend_handles_labels()
             lines += line
             labels += label
-        host_ax.legend(lines, labels, loc='upper left', bbox_to_anchor=(1.05, 1))
+        leg = host_ax.legend(lines, labels, loc='upper left', bbox_to_anchor=(1.05, 1))
         host_ax.grid(True)
         plt.tight_layout(rect=[0, 0, 0.85, 1])
-
-        leg = host_ax.legend(lines, labels, loc='upper left', bbox_to_anchor=(1.05, 1))
-
-        # Make legend items pickable
-        for legline in leg.get_lines():
-            legline.set_picker(True)
-            legline.set_pickradius(5)
-
-        # Map legend lines to plot lines
-        legend_line_to_plot_line = dict(zip(leg.get_lines(), lines))
-
-        def on_legend_hover(event):
-            # Only respond to mouse motion over the legend
-            if event.inaxes == leg.axes:
-                for legline, plotline in legend_line_to_plot_line.items():
-                    if legline.contains(event)[0]:
-                        plotline.set_linewidth(4)
-                        plotline.set_alpha(1.0)
-                    else:
-                        plotline.set_linewidth(1.5)
-                        plotline.set_alpha(0.3)
-                fig.canvas.draw_idle()
-            else:
-                # Reset all lines if not hovering over legend
-                for plotline in lines:
-                    plotline.set_linewidth(1.5)
-                    plotline.set_alpha(1.0)
-                fig.canvas.draw_idle()
-
-        fig.canvas.mpl_connect('motion_notify_event', on_legend_hover)
 
         return host_ax
 
