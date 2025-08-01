@@ -65,7 +65,9 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch { // Use lifecycleScope for long-running UI-related coroutines
             mainViewModel.saveFileRequestFlow.collect { request ->
                 pendingSaveRequest = request // Store the data temporarily
-                createJsonFile(request.suggestedName)
+                if (request != null) {
+                    createJsonFile(request.suggestedName)
+                }
             }
         }
 
@@ -73,11 +75,12 @@ class MainActivity : ComponentActivity() {
             registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
                 val fineLocationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
                 val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+                val foregroundServiceLocationGranted = permissions[Manifest.permission.FOREGROUND_SERVICE_LOCATION] ?: false
 
-                if (fineLocationGranted) {
+                if (fineLocationGranted && foregroundServiceLocationGranted) {
                     _locationPermissionState.value = LocationPermissionStatus.GRANTED_FINE
                     mainViewModel.onLocationPermissionsGranted() // Notify ViewModel
-                } else if (coarseLocationGranted) {
+                } else if (coarseLocationGranted && foregroundServiceLocationGranted) {
                     _locationPermissionState.value = LocationPermissionStatus.GRANTED_COARSE
                     mainViewModel.onLocationPermissionsGranted() // Notify ViewModel
                 } else {
@@ -120,27 +123,30 @@ class MainActivity : ComponentActivity() {
         _locationPermissionState.value = LocationPermissionStatus.CHECKING
         val fineLocationPermission = Manifest.permission.ACCESS_FINE_LOCATION
         val coarseLocationPermission = Manifest.permission.ACCESS_COARSE_LOCATION
+        val foregroundServiceLocationPermission = Manifest.permission.FOREGROUND_SERVICE_LOCATION
 
         val fineLocationGranted = ContextCompat.checkSelfPermission(this, fineLocationPermission) == PackageManager.PERMISSION_GRANTED
         val coarseLocationGranted = ContextCompat.checkSelfPermission(this, coarseLocationPermission) == PackageManager.PERMISSION_GRANTED
+        val foregroundServiceLocationGranted = ContextCompat.checkSelfPermission(this, foregroundServiceLocationPermission) == PackageManager.PERMISSION_GRANTED
 
         when {
-            fineLocationGranted -> {
+            fineLocationGranted && foregroundServiceLocationGranted -> {
                 _locationPermissionState.value = LocationPermissionStatus.GRANTED_FINE
                 mainViewModel.onLocationPermissionsGranted()
             }
-            coarseLocationGranted -> {
+            coarseLocationGranted && foregroundServiceLocationGranted -> {
                 _locationPermissionState.value = LocationPermissionStatus.GRANTED_COARSE
                 mainViewModel.onLocationPermissionsGranted()
             }
             shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION) ||
-                    shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION) -> {
+                    shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION) ||
+                    shouldShowRequestPermissionRationale(Manifest.permission.FOREGROUND_SERVICE_LOCATION) -> {
                 _locationPermissionState.value = LocationPermissionStatus.DENIED_RATIONALE
             }
             else -> {
                 // Request permissions
                 requestLocationPermissionLauncher.launch(
-                    arrayOf(fineLocationPermission, coarseLocationPermission)
+                    arrayOf(fineLocationPermission, coarseLocationPermission, foregroundServiceLocationPermission)
                 )
             }
         }

@@ -1,8 +1,12 @@
 package com.example.mountainbiketrainer
 
 import android.app.Application
-import android.hardware.SensorManager
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
 import android.net.Uri
+import android.os.IBinder
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,53 +14,110 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-import kotlin.math.sqrt
 
 data class SaveFileRequest(val suggestedName: String, val dataToSave: List<TimestampedSensorEvent>)
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
-    private val sensorDataProvider = SensorDataProvider(application.applicationContext)
-    private val locationProvider = LocationProvider(application.applicationContext)
-
-    private var allRecordedEvents = mutableListOf<TimestampedSensorEvent>()
-    private var sensorCollectionJob: Job? = null
+    private var sensorDataService: SensorDataService? = null
+    private var bound = false
 
     private val _locationPermissionGranted = MutableStateFlow(true)
     private val _collecting = MutableStateFlow(false)
 
+    // Delegate to service state flows
     private val _currentSpeed = MutableStateFlow<GPSSpeedEvent?>(null)
     val currentSpeed: StateFlow<GPSSpeedEvent?> = _currentSpeed.asStateFlow()
-
+    
     private val _maxSpeed = MutableStateFlow<GPSSpeedEvent?>(null)
     val maxSpeed: StateFlow<GPSSpeedEvent?> = _maxSpeed.asStateFlow()
-
+    
     private val _maxGForce = MutableStateFlow<Float?>(null)
     val maxGForce: StateFlow<Float?> = _maxGForce.asStateFlow()
-
-    private val jumpDetector = JumpDetector()
-
+    
     private val _lastAirTime = MutableStateFlow<Float?>(null)
     val lastAirTime: StateFlow<Float?> = _lastAirTime.asStateFlow()
-
-    private val _saveFileRequestChannel = Channel<SaveFileRequest>()
-    val saveFileRequestFlow = _saveFileRequestChannel.receiveAsFlow()
-
+    
     private val _currentLinearAccel = MutableStateFlow<LinearAccelEvent?>(null)
     val currentLinearAccel: StateFlow<LinearAccelEvent?> = _currentLinearAccel.asStateFlow()
-
+    
     private val _maxLinearAccel = MutableStateFlow<LinearAccelEvent?>(null)
     val maxLinearAccel: StateFlow<LinearAccelEvent?> = _maxLinearAccel.asStateFlow()
+    
+    private val _saveFileRequestFlow = MutableStateFlow<SaveFileRequest?>(null)
+    val saveFileRequestFlow: StateFlow<SaveFileRequest?> = _saveFileRequestFlow.asStateFlow()
+
+    private val connection = object : ServiceConnection {
+        override fun onServiceConnected(className: ComponentName, service: IBinder) {
+            val binder = service as SensorDataService.LocalBinder
+            sensorDataService = binder.getService()
+            bound = true
+            Log.d("MainViewModel", "Service connected")
+            
+            // Observe service state flows
+            viewModelScope.launch {
+                sensorDataService?.isCollecting?.collect { isCollecting ->
+                    _collecting.value = isCollecting
+                }
+            }
+            
+            viewModelScope.launch {
+                sensorDataService?.currentSpeed?.collect { speed ->
+                    _currentSpeed.value = speed
+                }
+            }
+            
+            viewModelScope.launch {
+                sensorDataService?.maxSpeed?.collect { maxSpeed ->
+                    _maxSpeed.value = maxSpeed
+                }
+            }
+            
+            viewModelScope.launch {
+                sensorDataService?.maxGForce?.collect { maxGForce ->
+                    _maxGForce.value = maxGForce
+                }
+            }
+            
+            viewModelScope.launch {
+                sensorDataService?.lastAirTime?.collect { airTime ->
+                    _lastAirTime.value = airTime
+                }
+            }
+            
+            viewModelScope.launch {
+                sensorDataService?.currentLinearAccel?.collect { linearAccel ->
+                    _currentLinearAccel.value = linearAccel
+                }
+            }
+            
+            viewModelScope.launch {
+                sensorDataService?.maxLinearAccel?.collect { maxLinearAccel ->
+                    _maxLinearAccel.value = maxLinearAccel
+                }
+            }
+            
+            viewModelScope.launch {
+                sensorDataService?.saveFileRequestFlow?.collect { saveRequest ->
+                    _saveFileRequestFlow.value = saveRequest
+                }
+            }
+        }
+
+        override fun onServiceDisconnected(arg0: ComponentName) {
+            bound = false
+            sensorDataService = null
+            Log.d("MainViewModel", "Service disconnected")
+        }
+    }
+
+    init {
+        bindService()
+    }
 
     fun onLocationPermissionsGranted() {
         _locationPermissionGranted.value = true
@@ -67,73 +128,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleOverallDataCollection() {
-        _collecting.value = !_collecting.value
-        if (_collecting.value) {
-            allRecordedEvents.clear() // Clear the list before starting a new collection
-            Log.i("MainViewModel", "Cleared previous session data. Starting new session.")
-
-            sensorCollectionJob = viewModelScope.launch {
-                val sensorFlow = sensorDataProvider.sensorEventsFlow()
-                val locationFlow = locationProvider.locationUpdatesFlow()
-
-                merge(sensorFlow, locationFlow) // Combine all event sources
-                    .collect { event ->
-                        if (_collecting.value) {
-                            allRecordedEvents.add(event) // Store the event for processing later
-
-                            // Add minimal processing to update UI
-                            if(event is AccelerometerEvent) {
-                                val airTime = jumpDetector.processSensorEvent(event)
-                                if (airTime != null) {
-                                    _lastAirTime.value = airTime
-                                }
-                            }
-                            if(event is GPSSpeedEvent) {
-                                _currentSpeed.value = event
-                                if (_maxSpeed.value == null || event.speedMps > _maxSpeed.value!!.speedMps) {
-                                    _maxSpeed.value = event
-                                }
-                            }
-                            if(event is LinearAccelEvent) {
-                                val magnitudeMs2 = sqrt(event.x * event.x + event.y * event.y + event.z * event.z)
-                                val gforce = magnitudeMs2/ SensorManager.GRAVITY_EARTH
-                                if (_maxGForce.value == null || gforce > _maxGForce.value!!) {
-                                    _maxGForce.value = gforce
-                                }
-                                _currentLinearAccel.value = event
-                                if (_maxLinearAccel.value == null || event.z > _maxLinearAccel.value!!.z) {
-                                    _maxLinearAccel.value = event
-                                }
-                            }
-                        }
-                    }
+        if (bound && sensorDataService != null) {
+            if (_collecting.value) {
+                sensorDataService?.stopDataCollection()
+            } else {
+                sensorDataService?.startDataCollection()
             }
-            Log.i("MainViewModel","Started data collection for all events.")
         } else {
-            sensorCollectionJob?.cancel()
-            sensorCollectionJob = null
-            Log.i("MainViewModel","Stopped data collection.")
-
-            if (allRecordedEvents.isEmpty()) {
-                Log.i("MainViewModel", "No sensor events to export.")
-                return
-            }
-
-            val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US)
-            val suggestedFileName = "session_raw_all_${sdf.format(Date())}.json"
-
-            viewModelScope.launch {
-                // Logcat for debugging
-                 allRecordedEvents.takeLast(100).forEach { Log.d("MainViewModel", "Event: $it") }
-
-                _saveFileRequestChannel.send(
-                    SaveFileRequest(
-                        suggestedName = suggestedFileName,
-                        dataToSave = ArrayList(allRecordedEvents)
-                    )
-                )
-            }
+            Log.w("MainViewModel", "Service not bound, cannot toggle collection")
         }
+    }
+
+    private fun bindService() {
+        val intent = Intent(getApplication(), SensorDataService::class.java)
+        getApplication<Application>().bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        
+        // Start the service if not already running
+        getApplication<Application>().startService(intent)
     }
 
     fun writeDataToUri(uri: Uri, data: List<TimestampedSensorEvent>) {
@@ -143,11 +154,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val mapper = ObjectMapper().registerModule(KotlinModule.Builder().build())
 
                     mapper.enable(SerializationFeature.INDENT_OUTPUT)
-                    // Build the list of objects as you were
                     val jsonString: String = mapper.writeValueAsString(data)
                     outputStream.write(jsonString.toByteArray())
                     Log.i("MainViewModel", "All sensor event data saved to URI: $uri")
-                    // allRecordedEvents.clear() // Clear only if this is the definitive end of data
                 } ?: run {
                     Log.e("MainViewModel", "Failed to open OutputStream for URI: $uri")
                 }
@@ -159,12 +168,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         super.onCleared()
-        sensorCollectionJob?.cancel()
+        if (bound) {
+            getApplication<Application>().unbindService(connection)
+        }
     }
 
     fun resetMax() {
-        _maxSpeed.value = null
-        _currentSpeed.value = null
-        _lastAirTime.value = null
+        sensorDataService?.resetMaxValues()
     }
 }
